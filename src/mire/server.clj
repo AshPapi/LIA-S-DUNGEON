@@ -95,5 +95,5 @@
   ([] (-main 3333))
   ([port]
    (rooms/add-rooms)
-   (println "Starting Mire server with static dungeon on port" port)
+   (println "Starting Mire server with procedural dungeon on port" port)
    (socket/create-server (Integer. port) mire-handle-client)))

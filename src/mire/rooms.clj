@@ -1,39 +1,31 @@
-(ns mire.rooms)
+(ns mire.rooms
+  (:require [mire.dungeon-gen :as dungeon-gen]))
 
 (def rooms (ref {}))
 
-(defn- make-room [id desc exits items]
-  {:name id
-   :desc desc
-  :exits (ref exits)
-   :items (ref items)
-   :inhabitants (ref #{})})
-
-(defn- build-static-rooms []
-  (let [start (make-room :start
-                         "You are in a small antechamber carved into the rock."
-                         {:north :hallway :east :armory}
-                         #{:torch})
-        hallway (make-room :hallway
-                           "A drafty hallway stretches into the darkness."
-                           {:south :start :east :library}
-                           #{:coin})
-        armory (make-room :armory
-                          "Rusty weapons hang from the walls of this cramped room."
-                          {:west :start}
-                          #{:sword})
-        library (make-room :library
-               "Dusty shelves are packed with crumbling tomes."
-               {:west :hallway}
-               #{:scroll})]
-    {:start start
-     :hallway hallway
-     :armory armory
-     :library library}))
+(defn- start-room [dungeon]
+  (let [north (when (contains? dungeon :room-0-1) :room-0-1)
+        east (when (contains? dungeon :room-1-0) :room-1-0)
+        exits (-> {}
+                  (cond-> north (assoc :north north))
+                  (cond-> east (assoc :east east)))]
+    {:name :start
+     :desc "You stand at the mouth of a newly carved dungeon."
+     :exits (ref exits)
+     :items (ref #{})
+     :inhabitants (ref #{})}))
 
 (defn add-rooms
-  ([] (add-rooms nil))
-  ([_] (dosync (ref-set rooms (build-static-rooms)))))
+  ([] (add-rooms nil true))
+  ([dir] (add-rooms dir true))
+  ([dir use-procedural?]
+   (if use-procedural?
+     (let [dungeon (dungeon-gen/generate-dungeon)
+           start (start-room dungeon)]
+       (dosync
+        (ref-set rooms (assoc dungeon :start start))))
+     (dosync
+      (ref-set rooms {})))))
 
 (defn current [room-name]
   (@rooms room-name))
