@@ -34,7 +34,7 @@
          (when puzzle (str "You notice a mysterious inscription: \"" (:q puzzle) "\"\nUse: puzzle\n"))
          (when traders (str "Traders here: " (clojure.string/join ", " (map :name traders)) "\n"))
          (when (seq others) (str "Also here: " (clojure.string/join ", " (map name others)) "\n"))
-         "\nCommands: 1)Look 2)Move 3)Grab 4)Inventory 5)Attack 6)Use 7)Equip 8)Trade 9)Stats *)Puzzle +)LevelUp 0)Quit")))
+         "\nCommands: 1)Look 2)Move 3)Grab 4)Inventory 5)Attack 6)Use 7)Equip 8)Trade 9)Stats *)Puzzle #)Timer +)LevelUp 0)Quit")))
 
 (defn move
   "Move in a direction."
@@ -319,6 +319,18 @@
                   (str "Not enough gold! Need " price ", you have " (player/get-gold player/*stats*) ".")))
               "Invalid item number.")))))))
 
+(defn show-timer
+  "Show remaining game time."
+  []
+  (if-let [end-time @lobby/game-end-time]
+    (let [remaining (- end-time (System/currentTimeMillis))
+          minutes (quot remaining 60000)
+          seconds (quot (mod remaining 60000) 1000)]
+      (if (pos? remaining)
+        (str "Time remaining: " minutes ":" (format "%02d" seconds))
+        "Time's up!"))
+    "Timer not started."))
+
 (def commands
   {"move" move
    "north" (fn [] (move "north"))
@@ -340,7 +352,8 @@
    "say" say
    "attack" attack-mob
    "solve" solve-puzzle
-  "trade" trade
+   "trade" trade
+   "timer" show-timer
    "levelup" levelup-choice})
 
 (defn execute

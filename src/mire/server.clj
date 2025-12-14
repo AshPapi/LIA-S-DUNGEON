@@ -10,6 +10,7 @@
 
 (defn- cleanup []
   (lobby/leave! player/*name*)
+  (lobby/unregister-player-stats! player/*name*)
   (when-let [room @player/*current-room*]
     (doseq [item @player/*inventory*]
       (commands/discard item))
@@ -25,6 +26,37 @@
         (recur (read-line)))
     name))
 
+(defn- check-game-time []
+  (when-let [end-time @lobby/game-end-time]
+    (<= end-time (System/currentTimeMillis))))
+
+(defn- show-game-over []
+  ;; Wait a moment to let all players sync
+  (Thread/sleep 500)
+  (locking lobby/game-end-time
+    (when @lobby/game-end-time
+      (lobby/broadcast-game-over!)
+      (reset! lobby/game-end-time nil)))
+  (println "\n========================================")
+  (println "         YOUR PERSONAL RESULTS")
+  (println "========================================")
+  (let [s @player/*stats*]
+    (println (str "  Level: " (:level s)))
+    (println (str "  XP: " (:xp s)))
+    (println (str "  Gold: " (:gold s)))
+    (println (str "  HP: " (:hp s) "/" (:max-hp s))))
+  (println "========================================")
+  (println "\nGame over. Type 'quit' to exit.")
+  (flush)
+  (loop [line (read-line)]
+    (when line
+      (if (= (str/lower-case (str/trim line)) "quit")
+        (println "Goodbye!")
+        (do
+          (println "Type 'quit' to exit.")
+          (flush)
+          (recur (read-line)))))))
+
 (defn- process-command [cmd menu]
   (cond
     (= cmd "quit")
@@ -38,6 +70,9 @@
 
     (= cmd "stats")
     (println (commands/execute "stats"))
+
+    (= cmd "timer")
+    (println (commands/show-timer))
 
     (= cmd "levelup")
     (let [s @player/*stats*]
@@ -236,6 +271,11 @@
                       (recur)))))))
 
           (when (realized? start-signal)
+            (lobby/start-game-timer!)
+            
+            ;; Register player stats for live tracking
+            (lobby/register-player-stats! player/*name* player/*stats*)
+            
             (let [start-room (@rooms/rooms :start)]
               (dosync
                (ref-set player/*current-room* start-room)
@@ -255,9 +295,11 @@
                         "8" "trade"
                         "9" "stats"
                         "*" "puzzle"
+                        "#" "timer"
                         "+" "levelup"
                         "0" "quit"}]
-              (println "\nCommands: 1)Look 2)Move 3)Grab 4)Inventory 5)Attack 6)Use 7)Equip 8)Trade 9)Stats *)Puzzle +)LevelUp 0)Quit")
+              (println "\nCommands: 1)Look 2)Move 3)Grab 4)Inventory 5)Attack 6)Use 7)Equip 8)Trade 9)Stats *)Puzzle #)Timer +)LevelUp 0)Quit")
+              (println (commands/show-timer))
               (print player/prompt) (flush)
 
               (loop [input (read-line)]
@@ -266,7 +308,12 @@
                   nil
                   
                   (not (player/alive? player/*stats*))
-                  (println "\n*** YOU DIED ***")
+                  (do
+                    (println "\n*** YOU DIED ***")
+                    (show-game-over))
+                  
+                  (check-game-time)
+                  (show-game-over)
                   
                   :else
                   (let [trim (str/trim input)

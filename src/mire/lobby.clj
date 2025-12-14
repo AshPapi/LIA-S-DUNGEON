@@ -10,6 +10,106 @@
 
 (defonce state (ref {:players {} :starting? false :countdown-start nil}))
 
+;; Game timer - 10 minutes from start
+(def game-end-time (atom nil))
+(def game-duration-ms (* 2 60 1000)) ;; 2 minutes for testing
+
+;; Store player scores for end game
+(def player-scores (atom {}))
+
+;; Store refs to player stats for live tracking
+(def player-stats-refs (atom {}))
+
+(defn register-player-stats! [name stats-ref]
+  "Register a player's stats ref for live tracking."
+  (swap! player-stats-refs assoc name stats-ref))
+
+(defn unregister-player-stats! [name]
+  "Unregister a player's stats ref."
+  (swap! player-stats-refs dissoc name))
+
+(defn collect-all-scores! []
+  "Collect scores from all registered players."
+  (doseq [[name stats-ref] @player-stats-refs]
+    (when stats-ref
+      (try
+        (let [stats @stats-ref]
+          (swap! player-scores assoc name {:xp (:xp stats)
+                                           :level (:level stats)
+                                           :gold (:gold stats)
+                                           :hp (:hp stats)
+                                           :max-hp (:max-hp stats)
+                                           :alive (> (:hp stats) 0)}))
+        (catch Exception _)))))
+
+(defn start-game-timer! []
+  (reset! game-end-time (+ (System/currentTimeMillis) game-duration-ms))
+  (reset! player-scores {}))
+
+(defn record-player-score! [name stats]
+  "Record a player's final score with alive status."
+  (swap! player-scores assoc name {:xp (:xp stats)
+                                   :level (:level stats)
+                                   :gold (:gold stats)
+                                   :hp (:hp stats)
+                                   :max-hp (:max-hp stats)
+                                   :alive (> (:hp stats) 0)}))
+
+(defn get-winner []
+  "Get the winner based on XP, then level, then gold. Only alive players can win."
+  (when (seq @player-scores)
+    (let [alive-players (filter (fn [[_ s]] (:alive s)) @player-scores)
+          sorted (sort-by (fn [[_ s]] [(- (:xp s)) (- (:level s)) (- (:gold s))]) alive-players)]
+      (first sorted))))
+
+(defn get-all-scores []
+  "Get all scores sorted by XP. Dead players are shown at the bottom."
+  (let [alive (filter (fn [[_ s]] (:alive s)) @player-scores)
+        dead (filter (fn [[_ s]] (not (:alive s))) @player-scores)
+        sorted-alive (sort-by (fn [[_ s]] [(- (:xp s)) (- (:level s)) (- (:gold s))]) alive)
+        sorted-dead (sort-by (fn [[_ s]] [(- (:xp s)) (- (:level s)) (- (:gold s))]) dead)]
+    (concat sorted-alive sorted-dead)))
+
+(defn broadcast-game-over! []
+  "Broadcast game over message with winner to all players."
+  ;; First collect all scores from all players
+  (collect-all-scores!)
+  (let [scores (get-all-scores)
+        winner (get-winner)
+        alive-count (count (filter (fn [[_ s]] (:alive s)) @player-scores))
+        msg (str "\n========================================\n"
+                 "         *** TIME'S UP! ***\n"
+                 "========================================\n\n"
+                 (if winner
+                   (str "🏆 WINNER: " (first winner) " 🏆\n"
+                        "   XP: " (:xp (second winner)) 
+                        " | Level: " (:level (second winner))
+                        " | Gold: " (:gold (second winner)) "\n\n")
+                   (if (zero? alive-count)
+                     "All players died! No winner.\n\n"
+                     "No participants.\n\n"))
+                 (when (seq scores)
+                   (str "--- LEADERBOARD ---\n"
+                        (clojure.string/join "\n" 
+                          (map-indexed (fn [idx [name s]]
+                                         (str (inc idx) ". " name 
+                                              (if (:alive s) "" " [DEAD]")
+                                              " - XP: " (:xp s)
+                                              ", Lvl: " (:level s)
+                                              ", Gold: " (:gold s)))
+                                       scores))
+                        "\n"))
+                 "\n========================================\n"
+                 "      Thanks for playing!\n"
+                 "========================================\n")]
+    (doseq [[name _] @player/streams]
+      (when-let [out (@player/streams name)]
+        (try
+          (binding [*out* out]
+            (println msg)
+            (flush))
+          (catch Exception _))))))
+
 (defn- all-ready? [s]
   (let [players (:players s)]
     (and (seq players) (every? (comp :ready? val) players))))
