@@ -58,20 +58,8 @@
       (str "You carry: " (->> items (map name) sort (str/join ", ")))
       "Your inventory is empty.")))
 
-(defn say [& words]
-  (let [msg (str/join " " words)]
-    (if (str/blank? msg)
-      "Say what?"
-      (do
-        (doseq [inhabitant (disj @(:inhabitants @player/*current-room*) player/*name*)]
-          (when-let [out (@player/streams inhabitant)]
-            (binding [*out* out]
-              (println (str player/*name* " says: " msg))
-              (flush))))
-        (str "You say: " msg)))))
-
 (defn help []
-  "Commands: look, move <dir>, grab <item>, drop <item>, inventory, say <msg>, help, quit")
+  "Commands: look, move <dir>, grab <item>, drop <item>, inventory, help, quit")
 
 (def commands
   {"look" (fn [& _] (look))
@@ -88,7 +76,6 @@
    "drop" (fn [item & more]
              (drop (str/join " " (cons (or item "") more))))
    "inventory" (fn [& _] (inventory))
-   "say" (fn [& words] (apply say words))
    "help" (fn [& _] (help))})
 
 (defn execute [input]

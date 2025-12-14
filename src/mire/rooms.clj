@@ -5,35 +5,34 @@
 (defn- make-room [id desc exits items]
   {:name id
    :desc desc
-  :exits (ref exits)
+   :exits (ref exits)
    :items (ref items)
    :inhabitants (ref #{})})
 
 (defn- build-static-rooms []
   (let [start (make-room :start
-                         "You are in a small antechamber carved into the rock."
+                         "You stand in a dim stone chamber."
                          {:north :hallway :east :armory}
                          #{:torch})
         hallway (make-room :hallway
-                           "A drafty hallway stretches into the darkness."
+                           "A narrow hallway echoes with distant dripping."
                            {:south :start :east :library}
                            #{:coin})
         armory (make-room :armory
-                          "Rusty weapons hang from the walls of this cramped room."
+                          "Stacks of battered shields line the walls."
                           {:west :start}
-                          #{:sword})
+                          #{:helmet})
         library (make-room :library
-               "Dusty shelves are packed with crumbling tomes."
-               {:west :hallway}
-               #{:scroll})]
+                            "Ancient tomes gather dust here."
+                            {:west :hallway}
+                            #{:scroll})]
     {:start start
      :hallway hallway
      :armory armory
      :library library}))
 
-(defn add-rooms
-  ([] (add-rooms nil))
-  ([_] (dosync (ref-set rooms (build-static-rooms)))))
+(defn add-rooms []
+  (dosync (ref-set rooms (build-static-rooms))))
 
 (defn current [room-name]
   (@rooms room-name))
