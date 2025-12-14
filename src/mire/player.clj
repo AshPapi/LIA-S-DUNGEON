@@ -8,6 +8,10 @@
 (def prompt "> ")
 (def streams (ref {}))
 
+;; XP thresholds for each level (level 1 needs 50 XP, level 2 needs 100, etc.)
+(defn xp-for-level [level]
+  (* 50 level))
+
 (defn carrying? [thing]
   (some #{(keyword thing)} @*inventory*))
 
@@ -19,6 +23,8 @@
         :damage damage
         :base-damage damage  ;; Base damage without weapon
         :xp 0
+        :level 1
+        :pending-levelup false  ;; Flag for pending level-up choice
         :gold 0
         :slots {:weapon nil :armor nil :potions #{}}
         :resist_pct 0
@@ -53,9 +59,37 @@
 (defn alive? [stats-ref]
   (> (:hp @stats-ref) 0))
 
+(defn check-level-up [stats-ref]
+  "Check if player has enough XP to level up. Returns :levelup if pending, nil otherwise."
+  (let [s @stats-ref
+        threshold (xp-for-level (:level s))]
+    (when (and (>= (:xp s) threshold) (not (:pending-levelup s)))
+      (dosync
+       (alter stats-ref assoc :pending-levelup true))
+      :levelup)))
+
+(defn apply-level-up! [stats-ref choice]
+  "Apply level-up bonus based on choice: :damage or :hp"
+  (dosync
+   (alter stats-ref (fn [s]
+                      (let [threshold (xp-for-level (:level s))
+                            new-xp (- (:xp s) threshold)
+                            base-update (-> s
+                                            (assoc :xp new-xp)
+                                            (update :level inc)
+                                            (assoc :pending-levelup false))]
+                        (case choice
+                          :damage (update base-update :base-damage + 2)
+                          :hp (-> base-update
+                                  (update :max-hp + 15)
+                                  (update :hp + 15))
+                          base-update))))))
+
 (defn add-xp! [stats-ref amt]
   (dosync
-   (alter stats-ref update :xp + amt)))
+   (alter stats-ref update :xp + amt))
+  ;; Check for level up after adding XP
+  (check-level-up stats-ref))
 
 (defn equip-weapon! [stats-ref weapon]
   (dosync

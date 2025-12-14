@@ -39,6 +39,19 @@
     (= cmd "stats")
     (println (commands/execute "stats"))
 
+    (= cmd "levelup")
+    (let [s @player/*stats*]
+      (if-not (:pending-levelup s)
+        (println "You have no available level-ups.")
+        (do
+          (println "=== LEVEL UP! ===")
+          (println "Choose upgrade:")
+          (println "1) +2 damage")
+          (println "2) +15 max HP")
+          (print "Your choice: ") (flush)
+          (let [choice (str/trim (read-line))]
+            (println (commands/execute (str "levelup " choice)))))))
+
     (= cmd "help")
     (println (commands/execute "help"))
 
@@ -242,8 +255,9 @@
                         "8" "trade"
                         "9" "stats"
                         "*" "puzzle"
+                        "+" "levelup"
                         "0" "quit"}]
-              (println "\nCommands: 1)Look 2)Move 3)Grab 4)Inventory 5)Attack 6)Use 7)Equip 8)Trade 9)Stats *)Puzzle 0)Quit")
+              (println "\nCommands: 1)Look 2)Move 3)Grab 4)Inventory 5)Attack 6)Use 7)Equip 8)Trade 9)Stats *)Puzzle +)LevelUp 0)Quit")
               (print player/prompt) (flush)
 
               (loop [input (read-line)]
@@ -259,6 +273,8 @@
                         cmd (get menu trim trim)
                         result (process-command cmd menu)]
                     (when (not= result :quit)
+                      (when (:pending-levelup @player/*stats*)
+                        (println "\n*** LEVEL UP! Press '+' to choose upgrade ***"))
                       (print player/prompt) (flush)
                       (recur (read-line)))))))))
         (finally (cleanup))))))

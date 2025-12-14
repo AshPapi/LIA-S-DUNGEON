@@ -34,7 +34,7 @@
          (when puzzle (str "You notice a mysterious inscription: \"" (:q puzzle) "\"\nUse: puzzle\n"))
          (when traders (str "Traders here: " (clojure.string/join ", " (map :name traders)) "\n"))
          (when (seq others) (str "Also here: " (clojure.string/join ", " (map name others)) "\n"))
-         "\nCommands: 1)Look 2)Move 3)Grab 4)Inventory 5)Attack 6)Use 7)Equip 8)Trade 9)Stats *)Puzzle 0)Quit")))
+         "\nCommands: 1)Look 2)Move 3)Grab 4)Inventory 5)Attack 6)Use 7)Equip 8)Trade 9)Stats *)Puzzle +)LevelUp 0)Quit")))
 
 (defn move
   "Move in a direction."
@@ -167,6 +167,7 @@
   "Show player stats."
   []
   (let [s @player/*stats*
+        xp-needed (player/xp-for-level (:level s))
         weapon (get-in s [:slots :weapon])
         armor (get-in s [:slots :armor])]
     (str "=== Stats ===\n"
@@ -174,8 +175,24 @@
          "Damage: " (:damage s) " (base: " (:base-damage s) ")\n"
          "Weapon: " (if weapon (:name weapon) "Fists") "\n"
          "Armor: " (if armor (str (:name armor) " (" (:resist armor) "%)") "None") "\n"
-         "XP: " (:xp s) "\n"
-         "Gold: " (:gold s))))
+         "XP: " (:xp s) "/" xp-needed "\n"
+         "Level: " (:level s) "\n"
+         "Gold: " (:gold s)
+         (when (:pending-levelup s)
+           "\n\n*** LEVEL UP! Use 'levelup' command ***"))))
+
+(defn levelup-choice
+  "Apply level-up bonus based on choice."
+  [choice]
+  (let [s @player/*stats*]
+    (if-not (:pending-levelup s)
+      "You have no available level-ups."
+      (case choice
+        "1" (do (player/apply-level-up! player/*stats* :damage)
+                (str "You chose +2 damage!\nYour new base damage: " (:base-damage @player/*stats*)))
+        "2" (do (player/apply-level-up! player/*stats* :hp)
+                (str "You chose +15 max HP!\nYour new HP: " (:hp @player/*stats*) "/" (:max-hp @player/*stats*)))
+        (str "Choose upgrade:\n1) +2 damage\n2) +15 max HP\nUse: levelup 1 or levelup 2")))))
 
 (defn display-help
   "Get help."
@@ -323,7 +340,8 @@
    "say" say
    "attack" attack-mob
    "solve" solve-puzzle
-  "trade" trade})
+  "trade" trade
+   "levelup" levelup-choice})
 
 (defn execute
   "Execute a command that is passed to us."
