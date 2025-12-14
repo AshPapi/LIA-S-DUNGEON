@@ -2,8 +2,6 @@
   (:require [mire.player :as player]
             [clojure.string :as str]))
 
-;; Definitions for mobs and simple combat helpers.
-
 (def mobs
   {:zombie {:name "Zombie" :hp 30 :max-hp 30 :damage 5 :xp 20}
    :skeleton {:name "Skeleton" :hp 25 :max-hp 25 :damage 6 :xp 25}

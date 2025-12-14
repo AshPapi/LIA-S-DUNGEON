@@ -135,6 +135,17 @@
               (println (commands/execute (str "grab " (name (item-choices (dec sel))))))
               (println "Invalid choice."))))))
 
+    (= cmd "puzzle")
+    (let [puzzle-ref (:puzzle @player/*current-room*)
+          puzzle (when puzzle-ref @puzzle-ref)]
+      (if puzzle
+        (do
+          (println (commands/execute "solve"))
+          (print "Your answer (0, 1, or 2): ") (flush)
+          (let [ans (str/trim (read-line))]
+            (println (commands/execute (str "solve " ans)))))
+        (println "No puzzle here.")))
+
     :else
     (println (commands/execute cmd)))
   nil)
@@ -218,8 +229,9 @@
                         "6" "use"
                         "7" "equip"
                         "9" "stats"
+                        "*" "puzzle"
                         "0" "quit"}]
-              (println "\nCommands: 1)Look 2)Move 3)Grab 4)Inventory 5)Attack 6)Use 7)Equip 9)Stats 0)Quit")
+              (println "\nCommands: 1)Look 2)Move 3)Grab 4)Inventory 5)Attack 6)Use 7)Equip 9)Stats *)Puzzle 0)Quit")
               (print player/prompt) (flush)
 
               (loop [input (read-line)]

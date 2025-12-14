@@ -3,7 +3,9 @@
             [mire.rooms :as rooms]
             [mire.player :as player]
             [mire.mobs :as mobs]
-            [mire.items :as items]))
+            [mire.items :as items]
+            [mire.puzzles :as puzzles]
+            [mire.lobby :as lobby]))
 
 (defn- move-between-refs
   "Move one instance of obj between from and to. Must call in a transaction."
@@ -18,6 +20,8 @@
         exits (->> @(:exits room) keys (map name) (clojure.string/join ", "))
         items (seq @(:items room))
         mobs (seq @(:mobs room))
+        puzzle-ref (:puzzle room)
+        puzzle (when puzzle-ref @puzzle-ref)
         others (disj @(:inhabitants room) player/*name*)]
     (str (:desc room)
          "\nExits: " exits "\n"
@@ -26,8 +30,9 @@
                          (clojure.string/join ", " 
                            (map #(let [m @%] (str (:name m) " [HP: " (:hp m) "/" (:max-hp m) "]")) mobs)) 
                          "\n"))
+         (when puzzle (str "You notice a mysterious inscription: \"" (:q puzzle) "\"\nUse: puzzle\n"))
          (when (seq others) (str "Also here: " (clojure.string/join ", " (map name others)) "\n"))
-         "\nCommands: 1)Look 2)Move 3)Grab 4)Inventory 5)Attack 6)Use 7)Equip 9)Stats 0)Quit")))
+         "\nCommands: 1)Look 2)Move 3)Grab 4)Inventory 5)Attack 6)Use 7)Equip 9)Stats *)Puzzle 0)Quit")))
 
 (defn move
   "Move in a direction."
@@ -39,7 +44,6 @@
          mobs-here (seq @(:mobs current-room))]
      (if target
        (do
-         ;; If fleeing from mobs, lose 10% max HP
          (when (seq mobs-here)
            (let [max-hp (:max-hp @player/*stats*)
                  flee-damage (max 1 (quot max-hp 10))]
@@ -102,14 +106,12 @@
     (let [item-key (keyword item)
           potion (items/get-potion item-key)]
       (cond
-        ;; Weapon upgrade
         (= item-key :weapon-upgrade)
         (do
           (dosync (alter player/*inventory* disj item-key))
           (player/upgrade-weapon! player/*stats*)
           (str "You upgraded your weapon! Damage increased by 2.\nYour current damage: " (:damage @player/*stats*)))
         
-        ;; Potion
         potion
         (do
           (dosync (alter player/*inventory* disj item-key))
@@ -201,13 +203,11 @@
             (let [m @mob]
               (if (<= (:hp m) 0)
                 (let [xp-reward (or (:xp m) 10)
-                      ;; Drop potion: 65% hp-small, 35% hp-medium
                       potion-drop (if (< (rand) 0.65) :hp-small :hp-medium)
                       potion-name (if (= potion-drop :hp-small) "Small HP Potion" "Medium HP Potion")]
                   (player/add-xp! player/*stats* xp-reward)
                   (dosync (alter player/*inventory* conj potion-drop))
                   (mobs/remove-mob-from-room! mob room)
-                  ;; Remaining mobs still attack
                   (let [remaining-mobs (seq @(:mobs room))
                         counter-attacks (if remaining-mobs
                                           (str "\n" (mobs/all-mobs-attack! room player/*stats*))
@@ -217,13 +217,38 @@
                         "Dropped: " potion-name "!" counter-attacks
                            "\nYour HP: " (:hp @player/*stats*) "/" (:max-hp @player/*stats*))
                       (str "You defeated " (:name m) "!" counter-attacks "\n\n*** YOU DIED ***"))))
-                ;; All mobs attack back
                 (let [attack-result (str "You hit " (:name m) "! [HP: " (:hp m) "/" (:max-hp m) "]\n"
                                          "All enemies attack!\n" (mobs/all-mobs-attack! room player/*stats*))]
                   (if (player/alive? player/*stats*)
                     (str attack-result "\nYour HP: " (:hp @player/*stats*) "/" (:max-hp @player/*stats*))
                     (str attack-result "\n\n*** YOU DIED ***"))))))
           "That mob is not here!")))))
+
+(defn solve-puzzle
+  "Show or attempt to solve a puzzle in the current room."
+  [& args]
+  (let [room @player/*current-room*
+        puzzle-ref (:puzzle room)
+        puzzle (when puzzle-ref @puzzle-ref)]
+    (if-not puzzle
+      "There is no puzzle here."
+      (if (empty? args)
+        (str "Puzzle: \"" (:q puzzle) "\"\n"
+             "Choices:\n"
+             (str/join "\n" (map-indexed (fn [i c] (str i ") " c)) (:choices puzzle)))
+             "\nUse: solve <number>")
+        (let [choice-idx (try (Integer/parseInt (first args)) (catch Exception _ nil))]
+          (if (nil? choice-idx)
+            "Enter a number (0, 1, or 2) to answer."
+            (if (<= choice-idx (dec (count (:choices puzzle))))
+              (do
+                (dosync (ref-set puzzle-ref nil))
+                (if (= choice-idx (:answer puzzle))
+                  (let [xp-reward (:xp puzzle)]
+                    (player/add-xp! player/*stats* xp-reward)
+                    (str "Correct! You solved the puzzle! Got " xp-reward " XP!"))
+                  (str "Wrong. The correct answer was: " ((:choices puzzle) (:answer puzzle)))))
+              "Invalid choice number.")))))))
 
 (def commands
   {"move" move
@@ -244,7 +269,9 @@
    "stats" display-stats
    "help" display-help
    "say" say
-  "attack" attack-mob})
+   "attack" attack-mob
+   "solve" solve-puzzle
+  })
 
 (defn execute
   "Execute a command that is passed to us."

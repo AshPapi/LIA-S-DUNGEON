@@ -17,7 +17,7 @@
   (ref {:hp hp
         :max-hp hp
         :damage damage
-        :base-damage damage  ;; Base damage without weapon
+        :base-damage damage  
         :xp 0
         :slots {:weapon nil :armor nil :potions #{}}
         :resist_pct 0
@@ -32,7 +32,7 @@
 (defn damage! [stats-ref amt]
   (dosync
    (alter stats-ref (fn [s]
-                      (let [; base armor resist from equipped armor
+                      (let [
                             armor (:armor (:slots s))
                             armor-resist (if armor (or (:resist armor) 0) 0)
                             resist-pct (or (:resist_pct s) 0)
@@ -74,7 +74,6 @@
          (alter stats-ref update-in [:slots :weapon :damage] + 2)
          (alter stats-ref update :damage + 2)
          true)
-       ;; No weapon equipped, upgrade base damage (fists)
        (do
          (alter stats-ref update :base-damage + 2)
          (alter stats-ref update :damage + 2)

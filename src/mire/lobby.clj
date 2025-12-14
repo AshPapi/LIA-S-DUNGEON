@@ -3,9 +3,6 @@
             [clojure.string :as str]
             [mire.player :as player]))
 
-;; Lobby state tracks connected players before the game starts.
-;; Each player entry holds {:ready? boolean :start promise}
-
 (def prompt "lobby> ")
 
 (defonce state (ref {:players {} :starting? false :countdown-start nil}))
@@ -92,7 +89,6 @@
                                (do
                                  (alter state assoc :starting? false :countdown-start nil)
                                  nil))))]
-        ;; Send start notice directly to players (state is cleared now).
         (doseq [[name _] to-start]
           (when-let [out (@player/streams name)]
             (binding [*out* out]

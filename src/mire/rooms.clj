@@ -1,5 +1,6 @@
 (ns mire.rooms
   (:require [mire.mobs :as mobs]
+            [mire.puzzles :as puzzles]
             [mire.dungeon-gen :as dungeon-gen]))
 
 (def rooms (ref {}))
@@ -33,7 +34,8 @@
                               :exits (ref {:north :room-0-1 :east :room-1-0})
                               :items (ref #{})
                               :inhabitants (ref #{})
-                              :mobs (ref #{})})))
+                              :mobs (ref #{})
+                              :puzzle (ref nil)})))
        (dosync
         (alter rooms load-rooms dir))))
   ([dir]
