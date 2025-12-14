@@ -1,34 +1,44 @@
 (ns mire.rooms
-  (:require [mire.dungeon-gen :as dungeon-gen]))
+  (:require [mire.mobs :as mobs]
+            [mire.dungeon-gen :as dungeon-gen]))
 
 (def rooms (ref {}))
 
-(defn- start-room [dungeon]
-  (let [north (when (contains? dungeon :room-0-1) :room-0-1)
-        east (when (contains? dungeon :room-1-0) :room-1-0)
-        exits (-> {}
-                  (cond-> north (assoc :north north))
-                  (cond-> east (assoc :east east)))]
-    {:name :start
-     :desc "You stand at the mouth of a newly carved dungeon."
-     :exits (ref exits)
-     :items (ref #{})
-     :inhabitants (ref #{})}))
+(defn load-room [rooms file]
+  (let [room (read-string (slurp (.getAbsolutePath file)))]
+    (conj rooms
+          {(keyword (.getName file))
+           {:name (keyword (.getName file))
+            :desc (:desc room)
+            :exits (ref (:exits room))
+            :items (ref (or (:items room) #{}))
+            :inhabitants (ref #{})
+            :mobs (ref #{})}})))
+
+(defn load-rooms
+  "Given a dir, return a map with an entry corresponding to each file
+  in it. Files should be maps containing room data."
+  [rooms dir]
+  (dosync
+   (reduce load-room rooms
+           (.listFiles (java.io.File. dir)))))
 
 (defn add-rooms
-  ([] (add-rooms nil true))
-  ([dir] (add-rooms dir true))
   ([dir use-procedural?]
-   (if use-procedural?
-     (let [dungeon (dungeon-gen/generate-dungeon)
-           start (start-room dungeon)]
+     (if use-procedural?
        (dosync
-        (ref-set rooms (assoc dungeon :start start))))
-     (dosync
-      (ref-set rooms {})))))
+        (ref-set rooms (assoc (dungeon-gen/generate-full-dungeon) :start
+                             {:name :start
+                              :desc "You find yourself in the entrance to a vast underground labyrinth."
+                              :exits (ref {:north :room-0-1 :east :room-1-0})
+                              :items (ref #{})
+                              :inhabitants (ref #{})
+                              :mobs (ref #{})})))
+       (dosync
+        (alter rooms load-rooms dir))))
+  ([dir]
+     (add-rooms dir true)))
 
-(defn current [room-name]
-  (@rooms room-name))
-
-(defn room-contains? [room thing]
+(defn room-contains?
+  [room thing]
   (@(:items room) (keyword thing)))

@@ -1,99 +1,257 @@
 (ns mire.commands
   (:require [clojure.string :as str]
             [mire.rooms :as rooms]
-            [mire.player :as player]))
+            [mire.player :as player]
+            [mire.mobs :as mobs]
+            [mire.items :as items]))
 
-(defn- move-between-refs [obj from to]
+(defn- move-between-refs
+  "Move one instance of obj between from and to. Must call in a transaction."
+  [obj from to]
   (alter from disj obj)
   (alter to conj obj))
 
-(defn look []
+(defn look
+  "Get a description of the surrounding environs and its contents."
+  []
   (let [room @player/*current-room*
-        exits (->> @(:exits room) keys (map name) sort (str/join ", "))
+        exits (->> @(:exits room) keys (map name) (clojure.string/join ", "))
         items (seq @(:items room))
+        mobs (seq @(:mobs room))
         others (disj @(:inhabitants room) player/*name*)]
     (str (:desc room)
-         (when (seq exits) (str "\nExits: " exits))
-         (when items (str "\nYou see: " (->> items (map name) sort (str/join ", "))))
-         (when (seq others)
-           (str "\nAlso here: " (->> others sort (str/join ", ")))))))
+         "\nExits: " exits "\n"
+         (when items (str "You see: " (clojure.string/join ", " (map name items)) "\n"))
+         (when mobs (str "Enemies here: " 
+                         (clojure.string/join ", " 
+                           (map #(let [m @%] (str (:name m) " [HP: " (:hp m) "/" (:max-hp m) "]")) mobs)) 
+                         "\n"))
+         (when (seq others) (str "Also here: " (clojure.string/join ", " (map name others)) "\n"))
+         "\nCommands: 1)Look 2)Move 3)Grab 4)Inventory 5)Attack 6)Use 7)Equip 9)Stats 0)Quit")))
 
-(defn move [direction]
-  (let [dir (keyword (str/lower-case direction))]
-    (dosync
-     (let [target-name ((:exits @player/*current-room*) dir)
-           target (when target-name (rooms/current target-name))]
-       (if target
-         (do (move-between-refs player/*name*
-                                (:inhabitants @player/*current-room*)
-                                (:inhabitants target))
-             (ref-set player/*current-room* target)
-             (look))
-         "You can't go that way.")))))
+(defn move
+  "Move in a direction."
+  [direction]
+  (dosync
+   (let [target-name ((:exits @player/*current-room*) (keyword direction))
+         target (@rooms/rooms target-name)
+         current-room @player/*current-room*
+         mobs-here (seq @(:mobs current-room))]
+     (if target
+       (do
+         ;; If fleeing from mobs, lose 10% max HP
+         (when (seq mobs-here)
+           (let [max-hp (:max-hp @player/*stats*)
+                 flee-damage (max 1 (quot max-hp 10))]
+             (player/damage! player/*stats* flee-damage)))
+         (move-between-refs player/*name*
+                            (:inhabitants current-room)
+                            (:inhabitants target))
+         (ref-set player/*current-room* target)
+         (if (seq mobs-here)
+           (str "You flee and lose " (max 1 (quot (:max-hp @player/*stats*) 10)) " HP!\n\n" (look))
+           (look)))
+       "You can't go that way."))))
 
-(defn grab [item]
-  (if (str/blank? item)
-    "Grab what?"
-    (dosync
-     (let [thing (keyword item)
-           room @player/*current-room*]
-       (if (rooms/room-contains? room thing)
-         (do (move-between-refs thing (:items room) player/*inventory*)
-             (str "You pick up " (name thing) "."))
-         (str "There is no " item " here."))))))
+(defn grab
+  "Pick something up."
+  [thing]
+  (dosync
+   (if (rooms/room-contains? @player/*current-room* thing)
+     (do (move-between-refs (keyword thing)
+                            (:items @player/*current-room*)
+                            player/*inventory*)
+         (str "You picked up " thing "."))
+     (str "There is no " thing " here."))))
 
-(defn drop [item]
-  (if (str/blank? item)
-    "Drop what?"
-    (dosync
-     (let [thing (keyword item)]
-       (if (player/carrying? item)
-         (do (move-between-refs thing player/*inventory* (:items @player/*current-room*))
-             (str "You drop " (name thing) "."))
-         (str "You are not carrying " item "."))))))
+(defn discard
+  "Put something down that you're carrying."
+  [thing]
+  (dosync
+   (if (player/carrying? thing)
+     (do (move-between-refs (keyword thing)
+                            player/*inventory*
+                            (:items @player/*current-room*))
+         (str "You dropped " thing "."))
+     (str "You don't have " thing "."))))
 
-(defn inventory []
-  (let [items (seq @player/*inventory*)]
-    (if items
-      (str "You carry: " (->> items (map name) sort (str/join ", ")))
+(defn inventory
+  "See what you've got."
+  []
+  (let [inv (seq @player/*inventory*)]
+    (if inv
+      (str "You are carrying:\n" (str/join "\n" (map name inv)))
       "Your inventory is empty.")))
 
-(defn say [& words]
-  (let [msg (str/join " " words)]
-    (if (str/blank? msg)
-      "Say what?"
-      (do
-        (doseq [inhabitant (disj @(:inhabitants @player/*current-room*) player/*name*)]
-          (when-let [out (@player/streams inhabitant)]
-            (binding [*out* out]
-              (println (str player/*name* " says: " msg))
-              (flush))))
-        (str "You say: " msg)))))
+(defn detect
+  "If you have the detector, you can see which room an item is in."
+  [item]
+  (if (player/carrying? "detector")
+    (let [item-key (keyword item)]
+      (if-let [room (first (filter #(rooms/room-contains? @(second %) item)
+                                   @rooms/rooms))]
+        (str item " is in " (name (first room)))
+        (str item " is not here")))
+    "You don't have a detector!"))
 
-(defn help []
-  "Commands: look, move <dir>, grab <item>, drop <item>, inventory, say <msg>, help, quit")
+(defn use-item
+  "Use an item in your inventory."
+  [item]
+  (if-not (player/carrying? item)
+    (str "You don't have " item ".")
+    (let [item-key (keyword item)
+          potion (items/get-potion item-key)]
+      (cond
+        ;; Weapon upgrade
+        (= item-key :weapon-upgrade)
+        (do
+          (dosync (alter player/*inventory* disj item-key))
+          (player/upgrade-weapon! player/*stats*)
+          (str "You upgraded your weapon! Damage increased by 2.\nYour current damage: " (:damage @player/*stats*)))
+        
+        ;; Potion
+        potion
+        (do
+          (dosync (alter player/*inventory* disj item-key))
+          (if-let [heal (:heal potion)]
+            (do
+              (player/heal! player/*stats* heal)
+              (str "You drank " (:name potion) " and restored " heal " HP!\n"
+                   "Your HP: " (:hp @player/*stats*) "/" (:max-hp @player/*stats*)))
+            (if-let [res (:resist potion)]
+              (let [turns (:turns potion 3)]
+                (player/apply-resist! player/*stats* res turns)
+                (str "You drank " (:name potion) " and gained " res "% resistance for " turns " turns!"))
+              (str "You used " (:name potion) ", but nothing happened."))))
+        
+        :else
+        (str "You can't use " item ".")))))
+
+(defn equip-item
+  "Equip a weapon or armor from inventory."
+  [item-name]
+  (if-not (player/carrying? item-name)
+    (str "You don't have " item-name " in inventory.")
+    (let [weapon (items/get-weapon item-name)
+          armor (items/get-armor item-name)]
+      (cond
+        weapon
+        (do
+          (dosync (alter player/*inventory* disj (keyword item-name)))
+          (player/equip-weapon! player/*stats* weapon)
+          (str "You equipped weapon: " (:name weapon) "."))
+        
+        armor
+        (do
+          (dosync (alter player/*inventory* disj (keyword item-name)))
+          (player/equip-armor! player/*stats* armor)
+          (str "You equipped armor: " (:name armor) " (resistance: " (:resist armor) "%)."))
+        
+        :else
+        "This can't be equipped."))))
+
+(defn unequip
+  "Remove your weapon."
+  []
+  (player/equip-weapon! player/*stats* nil)
+  "You are now unarmed.")
+
+(defn display-stats
+  "Show player stats."
+  []
+  (let [s @player/*stats*
+        weapon (get-in s [:slots :weapon])
+        armor (get-in s [:slots :armor])]
+    (str "=== Stats ===\n"
+         "HP: " (:hp s) "/" (:max-hp s) "\n"
+         "Damage: " (:damage s) " (base: " (:base-damage s) ")\n"
+         "Weapon: " (if weapon (:name weapon) "Fists") "\n"
+         "Armor: " (if armor (str (:name armor) " (" (:resist armor) "%)") "None") "\n"
+         "XP: " (:xp s))))
+
+(defn display-help
+  "Get help."
+  []
+  "Explore the dungeon and have fun!")
+
+(defn say
+  "Broadcast a message to the current room."
+  [& words]
+  (let [msg (str/join " " words)]
+    (doseq [inhabitant (disj @(:inhabitants @player/*current-room*) player/*name*)]
+      (if-let [output (get @player/streams inhabitant)]
+        (binding [*out* output]
+          (println (str player/*name* " says: " msg))
+          (flush))))
+    (str "You say: " msg)))
+
+(defn attack-mob
+  "Attack an enemy in the current room. All mobs attack back."
+  [& args]
+  (let [room @player/*current-room*
+        mob-seq (seq @(:mobs room))]
+    (if-not (seq mob-seq)
+      "There are no enemies here."
+      (let [mob (if (empty? args)
+                  (first mob-seq)
+                  (mobs/find-mob-in-room room (first args)))]
+        (if mob
+          (do
+            (mobs/player-attack-mob! player/*stats* mob)
+            (let [m @mob]
+              (if (<= (:hp m) 0)
+                (let [xp-reward (or (:xp m) 10)
+                      ;; Drop potion: 65% hp-small, 35% hp-medium
+                      potion-drop (if (< (rand) 0.65) :hp-small :hp-medium)
+                      potion-name (if (= potion-drop :hp-small) "Small HP Potion" "Medium HP Potion")]
+                  (player/add-xp! player/*stats* xp-reward)
+                  (dosync (alter player/*inventory* conj potion-drop))
+                  (mobs/remove-mob-from-room! mob room)
+                  ;; Remaining mobs still attack
+                  (let [remaining-mobs (seq @(:mobs room))
+                        counter-attacks (if remaining-mobs
+                                          (str "\n" (mobs/all-mobs-attack! room player/*stats*))
+                                          "")]
+                    (if (player/alive? player/*stats*)
+                      (str "You defeated " (:name m) "! Gained " xp-reward " XP!\n"
+                        "Dropped: " potion-name "!" counter-attacks
+                           "\nYour HP: " (:hp @player/*stats*) "/" (:max-hp @player/*stats*))
+                      (str "You defeated " (:name m) "!" counter-attacks "\n\n*** YOU DIED ***"))))
+                ;; All mobs attack back
+                (let [attack-result (str "You hit " (:name m) "! [HP: " (:hp m) "/" (:max-hp m) "]\n"
+                                         "All enemies attack!\n" (mobs/all-mobs-attack! room player/*stats*))]
+                  (if (player/alive? player/*stats*)
+                    (str attack-result "\nYour HP: " (:hp @player/*stats*) "/" (:max-hp @player/*stats*))
+                    (str attack-result "\n\n*** YOU DIED ***"))))))
+          "That mob is not here!")))))
 
 (def commands
-  {"look" (fn [& _] (look))
-   "move" (fn [direction & _]
-             (if direction
-               (move direction)
-               "Move where?"))
-   "north" (fn [& _] (move "north"))
-   "south" (fn [& _] (move "south"))
-   "east" (fn [& _] (move "east"))
-   "west" (fn [& _] (move "west"))
-   "grab" (fn [item & more]
-             (grab (str/join " " (cons (or item "") more))))
-   "drop" (fn [item & more]
-             (drop (str/join " " (cons (or item "") more))))
-   "inventory" (fn [& _] (inventory))
-   "say" (fn [& words] (apply say words))
-   "help" (fn [& _] (help))})
+  {"move" move
+   "north" (fn [] (move "north"))
+   "south" (fn [] (move "south"))
+   "east" (fn [] (move "east"))
+   "west" (fn [] (move "west"))
+   "look" look
+   "grab" grab
+   "take" grab
+   "drop" discard
+   "discard" discard
+   "inventory" inventory
+   "detect" detect
+   "use" use-item
+   "equip" equip-item
+   "unequip" unequip
+   "stats" display-stats
+   "help" display-help
+   "say" say
+  "attack" attack-mob})
 
-(defn execute [input]
-  (let [[command & args] (str/split input #"\s+")
-        action (get commands command)]
-    (if action
-      (apply action args)
-      (str "Unknown command: " command ". Type 'help' for assistance."))))
+(defn execute
+  "Execute a command that is passed to us."
+  [input]
+  (try
+    (let [[command & args] (.split input " +")]
+      (apply (commands command) args))
+    (catch Exception e
+      (.printStackTrace e (new java.io.PrintWriter *err*))
+      "You can't do that!")))
