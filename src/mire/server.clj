@@ -135,6 +135,17 @@
               (println (commands/execute (str "grab " (name (item-choices (dec sel))))))
               (println "Invalid choice."))))))
 
+    (= cmd "trade")
+    (let [traders (when-let [t (:traders @player/*current-room*)] @t)]
+      (if (or (nil? traders) (empty? traders))
+        (println "No trader here.")
+        (do
+          (println (commands/execute "trade"))
+          (print "Enter item number (or Enter to cancel): ") (flush)
+          (let [sel-str (str/trim (read-line))]
+            (when-not (empty? sel-str)
+              (println (commands/execute (str "trade " sel-str))))))))
+
     (= cmd "puzzle")
     (let [puzzle-ref (:puzzle @player/*current-room*)
           puzzle (when puzzle-ref @puzzle-ref)]
@@ -219,7 +230,7 @@
               (println (commands/look)))
             
             (println "\nYou start the game with bare fists (damage: 4).")
-            (println "Find weapons and armor in the dungeon as you explore!")
+            (println "Find weapons and armor in the dungeon or buy from a trader!")
 
             (let [menu {"1" "look"
                         "2" "move"
@@ -228,10 +239,11 @@
                         "5" "attack"
                         "6" "use"
                         "7" "equip"
+                        "8" "trade"
                         "9" "stats"
                         "*" "puzzle"
                         "0" "quit"}]
-              (println "\nCommands: 1)Look 2)Move 3)Grab 4)Inventory 5)Attack 6)Use 7)Equip 9)Stats *)Puzzle 0)Quit")
+              (println "\nCommands: 1)Look 2)Move 3)Grab 4)Inventory 5)Attack 6)Use 7)Equip 8)Trade 9)Stats *)Puzzle 0)Quit")
               (print player/prompt) (flush)
 
               (loop [input (read-line)]

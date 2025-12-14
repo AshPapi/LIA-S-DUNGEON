@@ -1,5 +1,7 @@
  (ns mire.items)
 
+;; Basic items: weapons, armor, potions, upgrades.
+
 (def weapons
   {:fists {:name "Fists" :damage 4 :min-damage 2 :max-damage 6}
    :sword {:name "Sword" :damage 6 :min-damage 4 :max-damage 8}
@@ -16,6 +18,7 @@
    :hp-medium {:name "Medium HP Potion" :heal 50}
    :resist {:name "Resistance Potion" :resist 25 :turns 3}})
 
+;; Weapon upgrade item
 (def upgrade-kit
   {:name "Weapon Upgrade" :damage-bonus 2})
 

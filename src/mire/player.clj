@@ -17,8 +17,9 @@
   (ref {:hp hp
         :max-hp hp
         :damage damage
-        :base-damage damage  
+        :base-damage damage  ;; Base damage without weapon
         :xp 0
+        :gold 0
         :slots {:weapon nil :armor nil :potions #{}}
         :resist_pct 0
         :resist_turns 0}))
@@ -32,7 +33,7 @@
 (defn damage! [stats-ref amt]
   (dosync
    (alter stats-ref (fn [s]
-                      (let [
+                      (let [; base armor resist from equipped armor
                             armor (:armor (:slots s))
                             armor-resist (if armor (or (:resist armor) 0) 0)
                             resist-pct (or (:resist_pct s) 0)
@@ -74,6 +75,7 @@
          (alter stats-ref update-in [:slots :weapon :damage] + 2)
          (alter stats-ref update :damage + 2)
          true)
+       ;; No weapon equipped, upgrade base damage (fists)
        (do
          (alter stats-ref update :base-damage + 2)
          (alter stats-ref update :damage + 2)
@@ -88,3 +90,20 @@
   (dosync
    (alter stats-ref assoc :resist_pct pct)
    (alter stats-ref assoc :resist_turns turns)))
+
+(defn add-gold! [stats-ref amt]
+  "Add gold to the player's stats."
+  (dosync
+   (alter stats-ref update :gold + amt)))
+
+(defn spend-gold! [stats-ref amt]
+  "Spend gold from the player's stats. Returns true if successful."
+  (dosync
+   (if (>= (:gold @stats-ref) amt)
+     (do (alter stats-ref update :gold - amt)
+         true)
+     false)))
+
+(defn get-gold [stats-ref]
+  "Get the player's current gold amount."
+  (:gold @stats-ref))

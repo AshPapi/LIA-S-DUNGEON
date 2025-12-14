@@ -35,6 +35,7 @@
                               :items (ref #{})
                               :inhabitants (ref #{})
                               :mobs (ref #{})
+                              :traders (ref [])
                               :puzzle (ref nil)})))
        (dosync
         (alter rooms load-rooms dir))))
