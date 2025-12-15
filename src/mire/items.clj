@@ -1,24 +1,28 @@
- (ns mire.items)
-
-;; Basic items: weapons, armor, potions, upgrades.
+(ns mire.items)
 
 (def weapons
   {:fists {:name "Fists" :damage 4 :min-damage 2 :max-damage 6}
-   :sword {:name "Sword" :damage 6 :min-damage 4 :max-damage 8}
+   :dagger {:name "Dagger" :damage 5 :min-damage 3 :max-damage 7}
    :club {:name "Club" :damage 4 :min-damage 2 :max-damage 6}
-   :axe {:name "Axe" :damage 7 :min-damage 5 :max-damage 9}})
+   :sword {:name "Sword" :damage 7 :min-damage 4 :max-damage 9}
+   :axe {:name "Axe" :damage 8 :min-damage 5 :max-damage 10}
+   :spear {:name "Spear" :damage 9 :min-damage 6 :max-damage 11}
+   :mace {:name "Mace" :damage 10 :min-damage 7 :max-damage 12}
+   :warhammer {:name "Warhammer" :damage 12 :min-damage 8 :max-damage 14}
+   :crossbow {:name "Crossbow" :damage 11 :min-damage 7 :max-damage 13}})
 
 (def armors
   {:none {:name "Clothes" :resist 0}
    :leather {:name "Leather Armor" :resist 10}
-   :chain {:name "Chainmail" :resist 20}})
+   :scale {:name "Scale Armor" :resist 18}
+   :chain {:name "Chainmail" :resist 25}
+   :plate {:name "Plate Armor" :resist 35}})
 
 (def potions
   {:hp-small {:name "Small HP Potion" :heal 20}
    :hp-medium {:name "Medium HP Potion" :heal 50}
    :resist {:name "Resistance Potion" :resist 25 :turns 3}})
 
-;; Weapon upgrade item
 (def upgrade-kit
   {:name "Weapon Upgrade" :damage-bonus 2})
 
@@ -41,7 +45,7 @@
   (or (:resist armor) 0))
 
 (defn use-potion! [stats-ref potion]
-  "Apply a potion effect to a player's stats ref. Currently only HP potions are supported."
+  "Apply a potion effect to a player's stats ref. Currently only HP and resistance potions are supported."
   (when-let [p (get-potion potion)]
     (require 'mire.player)
     (if-let [heal (:heal p)]

@@ -2,18 +2,18 @@
   (:require [mire.player :as player]
             [clojure.string :as str]))
 
-;; Definitions for mobs and simple combat helpers.
+
 
 (def mobs
-  {:zombie {:name "Zombie" :hp 30 :max-hp 30 :damage 5 :xp 20 :gold 10}
-   :skeleton {:name "Skeleton" :hp 25 :max-hp 25 :damage 6 :xp 25 :gold 15}
-   :witch {:name "Witch" :hp 40 :max-hp 40 :damage 8 :xp 40 :gold 30}
-   :berezutskie {:name "Twin Brothers" :hp 70 :max-hp 70 :damage 14 :xp 80 :gold 60}
-   :pudge {:name "Pudge" :hp 100 :max-hp 100 :damage 10 :xp 90 :gold 70}
-   :ghost {:name "Ghost" :hp 20 :max-hp 20 :damage 12 :xp 35 :gold 25}
-   :slenderman {:name "Slenderman" :hp 80 :max-hp 80 :damage 15 :xp 120 :gold 100}
-   :herobrine {:name "Herobrine" :hp 120 :max-hp 120 :damage 18 :xp 150 :gold 120}
-   :varpach {:name "Dark Knight" :hp 60 :max-hp 60 :damage 9 :xp 50 :gold 40}})
+  {:zombie {:name "Zombie" :hp 25 :max-hp 25 :damage 4 :xp 18 :gold 6}
+   :skeleton {:name "Skeleton" :hp 20 :max-hp 20 :damage 5 :xp 23 :gold 9}
+   :witch {:name "Witch" :hp 32 :max-hp 32 :damage 6 :xp 35 :gold 18}
+   :berezutskie {:name "Twin Brothers" :hp 55 :max-hp 55 :damage 11 :xp 70 :gold 36}
+   :pudge {:name "Pudge" :hp 80 :max-hp 80 :damage 8 :xp 80 :gold 42}
+   :ghost {:name "Ghost" :hp 16 :max-hp 16 :damage 9 :xp 30 :gold 15}
+   :slenderman {:name "Slenderman" :hp 65 :max-hp 65 :damage 12 :xp 105 :gold 60}
+   :herobrine {:name "Herobrine" :hp 95 :max-hp 95 :damage 14 :xp 130 :gold 72}
+   :varpach {:name "Dark Knight" :hp 48 :max-hp 48 :damage 7 :xp 45 :gold 24}})
 
 (def mob-types (vec (keys mobs)))
 

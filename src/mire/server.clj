@@ -6,18 +6,24 @@
             [mire.commands :as commands]
             [mire.rooms :as rooms]
             [mire.items :as items]
-            [mire.lobby :as lobby]))
+            [mire.lobby :as lobby]
+            [mire.bot :as bot]))
+
+(defn clear-screen []
+  (print "\u001b[2J\u001b[H")
+  (flush))
 
 (defn- cleanup []
   (lobby/leave! player/*name*)
   (lobby/unregister-player-stats! player/*name*)
   (when-let [room @player/*current-room*]
-    (doseq [item @player/*inventory*]
+    (doseq [item (player/inventory-items)]
       (commands/discard item))
     (dosync
      (commute (:inhabitants room) disj player/*name*)))
   (dosync
-   (commute player/streams dissoc player/*name*)))
+   (commute player/streams dissoc player/*name*))
+  (bot/ensure-bot!))
 
 (defn- get-unique-player-name [name]
   (if (@player/streams name)
@@ -30,8 +36,17 @@
   (when-let [end-time @lobby/game-end-time]
     (<= end-time (System/currentTimeMillis))))
 
+(defn- sanitize-name [n]
+  (let [clean (-> (or n "")
+                  str/trim
+                  (str/replace #"[^A-Za-z0-9 _\-]" ""))]
+    (cond
+      (str/blank? clean) "Player"
+      (> (count clean) 20) (subs clean 0 20)
+      :else clean)))
+
 (defn- show-game-over []
-  ;; Wait a moment to let all players sync
+  
   (Thread/sleep 500)
   (locking lobby/game-end-time
     (when @lobby/game-end-time
@@ -50,7 +65,7 @@
   (flush)
   (loop [line (read-line)]
     (when line
-      (if (= (str/lower-case (str/trim line)) "quit")
+      (if (= (str/lower-case (str/trim (or line ""))) "quit")
         (println "Goodbye!")
         (do
           (println "Type 'quit' to exit.")
@@ -58,6 +73,7 @@
           (recur (read-line)))))))
 
 (defn- process-command [cmd menu]
+  (clear-screen)
   (cond
     (= cmd "quit")
     (do (println "Goodbye!") (flush) :quit)
@@ -84,7 +100,7 @@
           (println "1) +2 damage")
           (println "2) +15 max HP")
           (print "Your choice: ") (flush)
-          (let [choice (str/trim (read-line))]
+          (let [choice (str/trim (or (read-line) ""))]
             (println (commands/execute (str "levelup " choice)))))))
 
     (= cmd "help")
@@ -95,15 +111,17 @@
       (if (empty? exits)
         (println "There are no exits here!")
         (do
-          (println "Available directions:")
+          (println "\nAvailable directions:")
           (doseq [[idx [dir _]] (map-indexed vector (sort exits))]
-            (println (str (inc idx) ") " (name dir))))
+            (println (format "  %d) %s" (inc idx) (name dir))))
           (print "Choose direction: ") (flush)
-          (let [sel-str (str/trim (read-line))
+          (let [sel-str (str/trim (or (read-line) ""))
                 sel (try (Integer/parseInt sel-str) (catch Exception _ nil))
                 dir-choices (vec (map first (sort exits)))]
             (if (and sel (<= 1 sel) (<= sel (count dir-choices)))
-              (println (commands/execute (str "move " (name (dir-choices (dec sel))))))
+              (do
+                (println)
+                (println (commands/execute (str "move " (name (dir-choices (dec sel)))))))
               (println "Invalid choice."))))))
 
     (= cmd "attack")
@@ -114,30 +132,38 @@
           (println "Enemies in room:")
           (doseq [[idx mob-atom] (map-indexed vector mobs-here)]
             (let [m @mob-atom]
-              (println (str (inc idx) ") " (:name m) " [HP: " (:hp m) "/" (:max-hp m) "]"))))
+              (println (format "  %d) %s [HP: %d/%d]" (inc idx) (:name m) (:hp m) (:max-hp m)))))
           (print "Choose target (or Enter for first): ") (flush)
-          (let [sel-str (str/trim (read-line))
-                result (commands/execute "attack")]
+          (let [sel-str (str/trim (or (read-line) ""))
+                cmd (if (str/blank? sel-str) "attack" (str "attack " sel-str))
+                result (commands/execute cmd)]
             (println result)
             (when-not (player/alive? player/*stats*)
               (println "\n*** GAME OVER ***"))))))
 
     (= cmd "use")
-    (let [inv (seq @player/*inventory*)
-          usable (filter #(or (items/get-potion %) (= % :weapon-upgrade)) inv)]
+    (let [inv-map @player/*inventory*
+          usable (->> inv-map
+                      keys
+                      (filter #(or (items/get-potion %) (= % :weapon-upgrade))))] 
       (if (empty? usable)
         (println "You have no items to use.")
         (do
           (println "Available items:")
           (doseq [[idx item] (map-indexed vector usable)]
             (let [p (items/get-potion item)
+                  qty (get inv-map item 0)
                   item-name (cond
                               p (:name p)
                               (= item :weapon-upgrade) "Weapon Upgrade (+2 damage)"
                               :else (name item))]
-              (println (str (inc idx) ") " (name item) " - " item-name))))
+              (println (format "  %d) %s%s - %s"
+                               (inc idx)
+                               (name item)
+                               (if (> qty 1) (format " (%d)" qty) "")
+                               item-name))))
           (print "Choose item: ") (flush)
-          (let [sel-str (str/trim (read-line))
+          (let [sel-str (str/trim (or (read-line) ""))
                 sel (try (Integer/parseInt sel-str) (catch Exception _ nil))
                 item-choices (vec usable)]
             (if (and sel (<= 1 sel) (<= sel (count item-choices)))
@@ -145,7 +171,8 @@
               (println "Invalid choice."))))))
 
     (= cmd "equip")
-    (let [inv (seq @player/*inventory*)
+    (let [inv-map @player/*inventory*
+          inv (keys inv-map)
           weapons (filter #(items/get-weapon %) inv)
           armors (filter #(items/get-armor %) inv)
           equippable (concat weapons armors)]
@@ -155,12 +182,19 @@
           (println "Equipment in inventory:")
           (doseq [[idx item] (map-indexed vector equippable)]
             (let [weapon (items/get-weapon item)
-                  armor (items/get-armor item)]
+                  armor (items/get-armor item)
+                  qty (get inv-map item 0)]
               (cond
-                weapon (println (str (inc idx) ") " (:name weapon) " [weapon, damage: " (:damage weapon) "]"))
-                armor (println (str (inc idx) ") " (:name armor) " [armor, resist: " (:resist armor) "%]")))))
+                weapon (println (format "  %d) %s%s [weapon, damage: %d]"
+                                        (inc idx) (:name weapon)
+                                        (if (> qty 1) (format " (%d)" qty) "")
+                                        (:damage weapon)))
+                armor (println (format "  %d) %s%s [armor, resist: %d%%]"
+                                       (inc idx) (:name armor)
+                                       (if (> qty 1) (format " (%d)" qty) "")
+                                       (:resist armor))))))
           (print "Choose equipment: ") (flush)
-          (let [sel-str (str/trim (read-line))
+          (let [sel-str (str/trim (or (read-line) ""))
                 sel (try (Integer/parseInt sel-str) (catch Exception _ nil))
                 equip-choices (vec equippable)]
             (if (and sel (<= 1 sel) (<= sel (count equip-choices)))
@@ -174,9 +208,9 @@
         (do
           (println "Items in room:")
           (doseq [[idx item] (map-indexed vector (sort items))]
-            (println (str (inc idx) ") " (name item))))
+            (println (format "  %d) %s" (inc idx) (name item))))
           (print "Choose item: ") (flush)
-          (let [sel-str (str/trim (read-line))
+          (let [sel-str (str/trim (or (read-line) ""))
                 sel (try (Integer/parseInt sel-str) (catch Exception _ nil))
                 item-choices (vec (sort items))]
             (if (and sel (<= 1 sel) (<= sel (count item-choices)))
@@ -189,9 +223,9 @@
         (println "No trader here.")
         (do
           (println (commands/execute "trade"))
-          (print "Enter item number (or Enter to cancel): ") (flush)
-          (let [sel-str (str/trim (read-line))]
-            (when-not (empty? sel-str)
+          (print "Enter 'buy <#>' or 'sell <#>' (or Enter to cancel): ") (flush)
+          (let [sel-str (str/trim (or (read-line) ""))]
+            (when-not (str/blank? sel-str)
               (println (commands/execute (str "trade " sel-str))))))))
 
     (= cmd "puzzle")
@@ -201,13 +235,14 @@
         (do
           (println (commands/execute "solve"))
           (print "Your answer (0, 1, or 2): ") (flush)
-          (let [ans (str/trim (read-line))]
+          (let [ans (str/trim (or (read-line) ""))]
             (println (commands/execute (str "solve " ans)))))
         (println "No puzzle here.")))
 
     :else
     (println (commands/execute cmd)))
-  nil)
+  nil
+)
 
 (defn- mire-handle-client [in out]
   (binding [*in* (io/reader in)
@@ -215,13 +250,14 @@
             *err* (io/writer System/err)]
 
     (print "\nWhat is your name? ") (flush)
-    (binding [player/*name* (get-unique-player-name (read-line))
+    (binding [player/*name* (get-unique-player-name (sanitize-name (read-line)))
               player/*current-room* (ref nil)
-              player/*inventory* (ref #{})
+              player/*inventory* (ref {})
               player/*stats* (player/init-stats 100 4)]
       (try
         (dosync
          (commute player/streams assoc player/*name* *out*))
+        (bot/ensure-bot!)
 
         (let [start-signal (lobby/register-player! player/*name*)
               poller (let [buf (StringBuilder.)]
@@ -237,14 +273,14 @@
                                    {:line s})
                                  :else (do (.append buf (char ch))
                                            (if (.ready *in*) (recur) nil))))))))]
-          (println "\nWelcome to Mire," player/*name* "!")
+          (println "\nWelcome to LIA`S DUNGEON," player/*name* "!")
           (println "You are in the lobby. Commands: ready, unready, status, quit.")
           (println (lobby/status))
           (print lobby/prompt) (flush)
           (loop []
             (cond
               (realized? start-signal)
-              (println "\nAll players ready! Starting dungeon...")
+              nil
 
               :else
               (let [res (poller)]
@@ -256,7 +292,7 @@
                   (do (println "Goodbye!") (flush))
 
                   :else
-                  (let [line (str/trim (:line res))
+                  (let [line (str/trim (or (:line res) ""))
                         cmd (str/lower-case line)]
                     (when-not (empty? cmd)
                       (case cmd
@@ -267,23 +303,26 @@
                         "quit" (do (println "Goodbye!") (flush))
                         (println "Unknown command. Try: ready, unready, status, quit.")))
                     (when-not (#{"quit"} cmd)
-                      (print lobby/prompt) (flush)
+                      (when-not (:starting? @lobby/state)
+                        (print lobby/prompt) (flush))
                       (recur)))))))
 
           (when (realized? start-signal)
             (lobby/start-game-timer!)
             
-            ;; Register player stats for live tracking
+            
             (lobby/register-player-stats! player/*name* player/*stats*)
             
-            (let [start-room (@rooms/rooms :start)]
+            (let [start-room (or (rooms/random-room) (@rooms/rooms :start))]
               (dosync
+               (ref-set (:items start-room) #{})
                (ref-set player/*current-room* start-room)
                (commute (:inhabitants @player/*current-room*) conj player/*name*))
+              (clear-screen)
+              (println "\nYou start the game with bare fists (damage: 4).")
+              (println "Find weapons and armor in the dungeon or buy from a trader!")
+              (println)
               (println (commands/look)))
-            
-            (println "\nYou start the game with bare fists (damage: 4).")
-            (println "Find weapons and armor in the dungeon or buy from a trader!")
 
             (let [menu {"1" "look"
                         "2" "move"
@@ -298,8 +337,6 @@
                         "#" "timer"
                         "+" "levelup"
                         "0" "quit"}]
-              (println "\nCommands: 1)Look 2)Move 3)Grab 4)Inventory 5)Attack 6)Use 7)Equip 8)Trade 9)Stats *)Puzzle #)Timer +)LevelUp 0)Quit")
-              (println (commands/show-timer))
               (print player/prompt) (flush)
 
               (loop [input (read-line)]
@@ -316,10 +353,11 @@
                   (show-game-over)
                   
                   :else
-                  (let [trim (str/trim input)
+                  (let [trim (str/trim (or input ""))
                         cmd (get menu trim trim)
                         result (process-command cmd menu)]
                     (when (not= result :quit)
+                      (bot/tick!)
                       (when (:pending-levelup @player/*stats*)
                         (println "\n*** LEVEL UP! Press '+' to choose upgrade ***"))
                       (print player/prompt) (flush)
@@ -328,6 +366,8 @@
 
 (defn -main
   ([port dir use-procedural?]
+   ;; Ensure CRLF newlines for telnet clients on Windows terminals.
+   (System/setProperty "line.separator" "\r\n")
    (rooms/add-rooms dir use-procedural?)
    (defonce server (socket/create-server (Integer. port) mire-handle-client))
    (println "Launching Mire server on port" port)

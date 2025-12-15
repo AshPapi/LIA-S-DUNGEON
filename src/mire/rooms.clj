@@ -5,16 +5,23 @@
 
 (def rooms (ref {}))
 
+(defn random-room []
+  "Pick a random non-start room from the current dungeon."
+  (when-let [keys (seq (remove #{:start} (keys @rooms)))]
+    (@rooms (rand-nth (vec keys)))))
+
 (defn load-room [rooms file]
   (let [room (read-string (slurp (.getAbsolutePath file)))]
     (conj rooms
           {(keyword (.getName file))
            {:name (keyword (.getName file))
-            :desc (:desc room)
+           :desc (:desc room)
             :exits (ref (:exits room))
             :items (ref (or (:items room) #{}))
             :inhabitants (ref #{})
-            :mobs (ref #{})}})))
+            :mobs (ref #{})
+            :traders (ref (or (:traders room) []))
+            :puzzle (ref (:puzzle room))}})))
 
 (defn load-rooms
   "Given a dir, return a map with an entry corresponding to each file

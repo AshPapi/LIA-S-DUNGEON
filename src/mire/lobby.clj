@@ -3,21 +3,14 @@
             [clojure.string :as str]
             [mire.player :as player]))
 
-;; Lobby state tracks connected players before the game starts.
-;; Each player entry holds {:ready? boolean :start promise}
-
 (def prompt "lobby> ")
 
 (defonce state (ref {:players {} :starting? false :countdown-start nil}))
 
-;; Game timer - 10 minutes from start
 (def game-end-time (atom nil))
-(def game-duration-ms (* 2 60 1000)) ;; 2 minutes for testing
+(def game-duration-ms (* 2 60 1000))
 
-;; Store player scores for end game
 (def player-scores (atom {}))
-
-;; Store refs to player stats for live tracking
 (def player-stats-refs (atom {}))
 
 (defn register-player-stats! [name stats-ref]
@@ -56,52 +49,56 @@
                                    :alive (> (:hp stats) 0)}))
 
 (defn get-winner []
-  "Get the winner based on XP, then level, then gold. Only alive players can win."
+  "Get the winner based on level, then XP, then gold. Only alive players can win."
   (when (seq @player-scores)
     (let [alive-players (filter (fn [[_ s]] (:alive s)) @player-scores)
-          sorted (sort-by (fn [[_ s]] [(- (:xp s)) (- (:level s)) (- (:gold s))]) alive-players)]
+          sorted (sort-by (fn [[_ s]] [(- (:level s)) (- (:xp s)) (- (:gold s))]) alive-players)]
       (first sorted))))
 
 (defn get-all-scores []
-  "Get all scores sorted by XP. Dead players are shown at the bottom."
+  "Get all scores sorted by level, XP, and gold. Dead players are shown at the bottom."
   (let [alive (filter (fn [[_ s]] (:alive s)) @player-scores)
         dead (filter (fn [[_ s]] (not (:alive s))) @player-scores)
-        sorted-alive (sort-by (fn [[_ s]] [(- (:xp s)) (- (:level s)) (- (:gold s))]) alive)
-        sorted-dead (sort-by (fn [[_ s]] [(- (:xp s)) (- (:level s)) (- (:gold s))]) dead)]
+        sorted-alive (sort-by (fn [[_ s]] [(- (:level s)) (- (:xp s)) (- (:gold s))]) alive)
+        sorted-dead (sort-by (fn [[_ s]] [(- (:level s)) (- (:xp s)) (- (:gold s))]) dead)]
     (concat sorted-alive sorted-dead)))
+
+(defn- format-scoreboard []
+  (let [scores (get-all-scores)]
+    (with-out-str
+      (println "Scores:")
+      (if (seq scores)
+        (doseq [[idx [name s]] (map-indexed vector scores)]
+          (println (format " %d) %s - Level: %d | XP: %d | Gold: %d%s"
+                           (inc idx) name (:level s) (:xp s) (:gold s)
+                           (if (:alive s) "" " (dead)"))))
+        (println " No participants.")))))
 
 (defn broadcast-game-over! []
   "Broadcast game over message with winner to all players."
-  ;; First collect all scores from all players
   (collect-all-scores!)
-  (let [scores (get-all-scores)
-        winner (get-winner)
+  (let [winner (get-winner)
         alive-count (count (filter (fn [[_ s]] (:alive s)) @player-scores))
-        msg (str "\n========================================\n"
-                 "         *** TIME'S UP! ***\n"
-                 "========================================\n\n"
-                 (if winner
-                   (str "🏆 WINNER: " (first winner) " 🏆\n"
-                        "   XP: " (:xp (second winner)) 
-                        " | Level: " (:level (second winner))
-                        " | Gold: " (:gold (second winner)) "\n\n")
-                   (if (zero? alive-count)
-                     "All players died! No winner.\n\n"
-                     "No participants.\n\n"))
-                 (when (seq scores)
-                   (str "--- LEADERBOARD ---\n"
-                        (clojure.string/join "\n" 
-                          (map-indexed (fn [idx [name s]]
-                                         (str (inc idx) ". " name 
-                                              (if (:alive s) "" " [DEAD]")
-                                              " - XP: " (:xp s)
-                                              ", Lvl: " (:level s)
-                                              ", Gold: " (:gold s)))
-                                       scores))
-                        "\n"))
-                 "\n========================================\n"
-                 "      Thanks for playing!\n"
-                 "========================================\n")]
+        msg (with-out-str
+              (println "\n========================================")
+              (println "         *** TIME'S UP! ***")
+              (println "========================================")
+              (println)
+              (if winner
+                (do
+                  (println (format "*** WINNER: %s ***" (first winner)))
+                  (println (format "   Level: %d | XP: %d | Gold: %d"
+                                   (:level (second winner))
+                                   (:xp (second winner))
+                                   (:gold (second winner))))
+                  (println))
+                (println (if (zero? alive-count)
+                           "All players died! No winner."
+                           "No participants.")))
+              (println (format-scoreboard))
+              (println "========================================")
+              (println "      Thanks for playing!")
+              (println "========================================"))]
     (doseq [[name _] @player/streams]
       (when-let [out (@player/streams name)]
         (try
@@ -120,10 +117,10 @@
 (defn- broadcast-to-lobby [msg]
   (doseq [name (keys (:players @state))]
     (when-let [out (@player/streams name)]
-      (binding [*out* out]
-        (println msg)
-        (print prompt)
-        (flush)))))
+      (when (not= name player/*name*)
+        (binding [*out* out]
+          (println msg)
+          (flush))))))
 
 (defn status
   "Return a lobby status string with player counts, readiness, and countdown."
@@ -136,13 +133,14 @@
                     (let [elapsed (/ (- (System/currentTimeMillis) started) 1000.0)
                           left (Math/ceil (max 0 (- 5 elapsed)))]
                       (int left)))]
-    (str "Players in lobby: " total " (ready: " (count ready) "). "
-         (when (seq ready)
-           (str "Ready: " (str/join ", " (sort ready)) ". "))
-         (when (seq waiting)
-           (str "Waiting: " (str/join ", " waiting) ". "))
-         (when countdown
-           (str "Starting in ~" countdown "s if everyone stays ready.")))))
+    (with-out-str
+      (println "Players in lobby:" total "(ready:" (count ready) ")")
+      (when (seq ready)
+        (println "Ready:" (str/join ", " (sort ready))))
+      (when (seq waiting)
+        (println "Waiting:" (str/join ", " waiting)))
+      (when countdown
+        (println "Starting in ~" countdown "s if everyone stays ready.")))))
 
 (defn register-player!
   "Add a player to the lobby and return a promise that will be delivered when the game starts."
@@ -180,7 +178,7 @@
             (when (and (all-ready? s) (not (:starting? s)))
               (alter state assoc :starting? true :countdown-start (System/currentTimeMillis))
               true)))
-    (broadcast-to-lobby "All players are ready! Game will start in 5 seconds...")
+    (broadcast-to-lobby "All players ready! Starting dungeon in 5 seconds...")
     (future
       (Thread/sleep 5000)
       (when-let [to-start (dosync
@@ -192,12 +190,13 @@
                                (do
                                  (alter state assoc :starting? false :countdown-start nil)
                                  nil))))]
-        ;; Send start notice directly to players (state is cleared now).
+        
         (doseq [[name _] to-start]
           (when-let [out (@player/streams name)]
-            (binding [*out* out]
-              (println "Game is starting!")
-              (flush))))
+            (when (not= name player/*name*)
+              (binding [*out* out]
+                (println "Game is starting!")
+                (flush)))))
         (doseq [[_ {:keys [start]}] to-start]
           (deliver start :start))))))
 
@@ -213,6 +212,13 @@
                     (assoc-in [:players name :ready?] ready?)
                     (cond-> (not ready?) (assoc :starting? false :countdown-start nil))))))
       (broadcast-to-lobby (str name " is now " (if ready? "READY" "not ready") "."))
-      (start-countdown!)
-      (if ready? "You are marked ready." "You are marked not ready."))
+      (let [all-ready-now (and ready? (all-ready? @state))
+            self-msg (with-out-str
+                       (println (if ready?
+                                  "You are marked ready."
+                                  "You are marked not ready."))
+                       (when all-ready-now
+                         (println "All players ready! Starting dungeon in 5 seconds...")))]
+        (start-countdown!)
+        self-msg))
     "You are not in the lobby."))

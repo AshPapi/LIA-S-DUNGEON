@@ -8,23 +8,66 @@
 (def prompt "> ")
 (def streams (ref {}))
 
-;; XP thresholds for each level (level 1 needs 50 XP, level 2 needs 100, etc.)
+;; Inventory helpers ---------------------------------------------------------
+
+(defn- inc-inventory-count
+  "Pure helper to bump an item count in an inventory map."
+  [inv item-key]
+  (update inv item-key (fnil inc 0)))
+
+(defn- dec-inventory-count
+  "Pure helper to decrease an item count in an inventory map, removing the key when it hits zero."
+  [inv item-key]
+  (let [cur (get inv item-key 0)]
+    (cond
+      (> cur 1) (assoc inv item-key (dec cur))
+      (= cur 1) (dissoc inv item-key)
+      :else inv)))
+
+(defn add-item!
+  "Add one instance of item-key to the bound inventory ref."
+  [item-key]
+  (dosync
+   (alter *inventory* inc-inventory-count (keyword item-key))))
+
+(defn remove-item!
+  "Remove one instance of item-key from the bound inventory ref. Returns true if something was removed."
+  [item-key]
+  (let [k (keyword item-key)]
+    (dosync
+     (let [before (get @*inventory* k 0)]
+       (when (pos? before)
+         (alter *inventory* dec-inventory-count k)
+         true)))))
+
+(defn inventory-items
+  "Return a seq of item keywords, repeating entries based on their counts."
+  []
+  (mapcat (fn [[k c]] (repeat c k)) @*inventory*))
+
+(defn inventory-unique
+  "Return the set of unique items currently held."
+  []
+  (keys @*inventory*))
+
+;; Stats and combat ----------------------------------------------------------
+
 (defn xp-for-level [level]
   (* 50 level))
 
 (defn carrying? [thing]
-  (some #{(keyword thing)} @*inventory*))
+  (pos? (get @*inventory* (keyword thing) 0)))
 
 (defn init-stats
-  "Create a new stats ref for a player with base hp and damage. Returns a ref." 
+  "Create a new stats ref for a player with base hp and damage. Returns a ref."
   [hp damage]
   (ref {:hp hp
         :max-hp hp
         :damage damage
-        :base-damage damage  ;; Base damage without weapon
+        :base-damage damage
         :xp 0
         :level 1
-        :pending-levelup false  ;; Flag for pending level-up choice
+        :pending-levelup false
         :gold 0
         :slots {:weapon nil :armor nil :potions #{}}
         :resist_pct 0
@@ -36,21 +79,20 @@
                       (let [new-hp (min (:max-hp s) (+ (:hp s) amt))]
                         (assoc s :hp new-hp))))))
 
-(defn damage! [stats-ref amt]
+(defn damage!
+  [stats-ref amt]
   (dosync
    (alter stats-ref (fn [s]
-                      (let [; base armor resist from equipped armor
-                            armor (:armor (:slots s))
+                      (let [armor (:armor (:slots s))
                             armor-resist (if armor (or (:resist armor) 0) 0)
-                            resist-pct (or (:resist_pct s) 0)
-                            total-resist (min 90 (+ armor-resist resist-pct))
+                            buff-resist (or (:resist_pct s) 0)
+                            total-resist (min 90 (+ armor-resist buff-resist))
                             effective-dmg (int (Math/round (* amt (/ (- 100 total-resist) 100.0))))
                             new-hp (max 0 (- (:hp s) effective-dmg))
-                            ; decrement resist turns if present
-                            new-resist-turns (if (and (pos? (:resist_turns s)) (pos? resist-pct))
+                            new-resist-turns (if (and (pos? (:resist_turns s)) (pos? buff-resist))
                                                (dec (:resist_turns s))
                                                (:resist_turns s))
-                            new-resist-pct (if (<= (or new-resist-turns 0) 0) 0 resist-pct)]
+                            new-resist-pct (if (<= (or new-resist-turns 0) 0) 0 buff-resist)]
                         (-> s
                             (assoc :hp new-hp)
                             (assoc :resist_turns new-resist-turns)
@@ -88,7 +130,6 @@
 (defn add-xp! [stats-ref amt]
   (dosync
    (alter stats-ref update :xp + amt))
-  ;; Check for level up after adding XP
   (check-level-up stats-ref))
 
 (defn equip-weapon! [stats-ref weapon]
@@ -109,7 +150,6 @@
          (alter stats-ref update-in [:slots :weapon :damage] + 2)
          (alter stats-ref update :damage + 2)
          true)
-       ;; No weapon equipped, upgrade base damage (fists)
        (do
          (alter stats-ref update :base-damage + 2)
          (alter stats-ref update :damage + 2)

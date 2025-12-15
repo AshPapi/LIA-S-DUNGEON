@@ -3,7 +3,7 @@
             [mire.items :as items]
             [mire.puzzles :as puzzles]))
 
-;; Room descriptions
+
 (def room-descriptions
   ["You stand in a dimly lit room with stone walls."
    "A huge underground cavern opens before you."
@@ -21,30 +21,49 @@
    "Water drips steadily from the ceiling."
    "The air here is cold and oppressive."])
 
-;; Items with probabilities - only useful items
+
 (def items-pool
-  [[:sword 0.10] [:club 0.12] [:axe 0.08]
-   [:leather 0.12] [:chain 0.06]
+  [[:dagger 0.12] [:club 0.14] [:sword 0.10] [:axe 0.08] [:spear 0.07]
+   [:mace 0.06] [:warhammer 0.04] [:crossbow 0.05] [:weapon-upgrade 0.05]
+   [:leather 0.12] [:scale 0.10] [:chain 0.07] [:plate 0.04]
    [:hp-small 0.25] [:hp-medium 0.15] [:resist 0.10]])
 
-;; NPC/Trader types
+
 (def trader-types
-  [{:name "Old Merchant" :desc "An experienced trader with many goods"}
-   {:name "Hermit" :desc "A mysterious hermit from the depths"}
-   {:name "Blacksmith" :desc "A rough blacksmith with powerful equipment"}
-   {:name "Alchemist" :desc "An alchemist brewing strange potions"}
-   {:name "Fortune Teller" :desc "A mystical fortune teller with cryptic words"}])
+  [{:type :general :name "Old Merchant" :desc "An experienced trader with many goods"}
+   {:type :scavenger :name "Hermit" :desc "A mysterious hermit from the depths"}
+   {:type :blacksmith :name "Blacksmith" :desc "A rough blacksmith with powerful equipment"}
+   {:type :alchemist :name "Alchemist" :desc "An alchemist brewing strange potions"}
+   {:type :fortune :name "Fortune Teller" :desc "A mystical fortune teller with cryptic words"}])
 
-;; Generate random items for a room
+
+(defn- weighted-pick
+  "Pick one item from pool of [item weight] with probability proportional to weight."
+  [pool]
+  (let [total (reduce + (map second pool))
+        r (* total (rand))]
+    (loop [[[item weight] & more] pool
+           acc 0]
+      (let [acc' (+ acc weight)]
+        (cond
+          (>= acc' r) item
+          (nil? more) item
+          :else (recur more acc'))))))
+
+
 (defn generate-room-items []
-  (let [items (ref #{})]
-    (doseq [[item-key prob] items-pool]
-      (when (< (rand) prob)
-        (dosync (alter items conj item-key))))
-    @items))
+  ;; Less frequent loot: ~65% rooms empty, ~25% with one item, ~10% with two.
+  (let [roll (rand)]
+    (cond
+      (< roll 0.65) #{}
+      (< roll 0.90) (set [(weighted-pick items-pool)])
+      :else (->> (repeatedly #(weighted-pick items-pool))
+                 distinct
+                 (take 2)
+                 set))))
 
-;; Generate room with random content
-;; Room can have ONLY ONE of: mobs, puzzle, or trader (mutually exclusive)
+
+
 (defn generate-room-content []
   (let [room-type (rand)
         base {:items (ref (generate-room-items))
@@ -54,56 +73,59 @@
               :inhabitants (ref #{})
               :room-type nil}]
     (cond
-      ;; 65% chance for mob room
-      (< room-type 0.65)
+      
+      (< room-type 0.55)
       (assoc base :room-type :mob)
       
-      ;; 25% chance for puzzle room
-      (< room-type 0.90)
+      
+      (< room-type 0.95)
       (assoc base :puzzle (ref (puzzles/random-puzzle)))
       
-      ;; 10% chance for trader room
+      
       :else
       (assoc base :traders (ref [(rand-nth trader-types)])))))
 
-;; Populate room with mobs (only if room-type is :mob)
+
 (defn add-mobs-to-room [room]
   (when (= (:room-type room) :mob)
     (let [mob-chance (rand)
           all-mob-types mobs/mob-types]
       (cond
-        ;; 10% chance for 2 mobs
+        
         (< mob-chance 0.10)
         (do (mobs/add-mob-to-room (rand-nth all-mob-types) room)
             (mobs/add-mob-to-room (rand-nth all-mob-types) room))
-        ;; 40% chance for weak mob (zombie, skeleton, ghost)
+        
         (< mob-chance 0.50)
         (mobs/add-mob-to-room (rand-nth [:zombie :skeleton :ghost]) room)
-        ;; 25% chance for medium mob
+        
         (< mob-chance 0.75)
         (mobs/add-mob-to-room (rand-nth [:witch :varpach :pudge]) room)
-        ;; 15% chance for strong mob
+        
         (< mob-chance 0.90)
         (mobs/add-mob-to-room (rand-nth [:berezutskie :slenderman]) room)
-        ;; 10% chance for boss
+        
         :else
         (mobs/add-mob-to-room :herobrine room))))
   room)
 
-;; Generate the complete dungeon
+
+(def dungeon-width 10)
+(def dungeon-height 10)
+
 (defn generate-full-dungeon []
   (let [rooms {}]
-    ;; Create 50 rooms in a 5x10 grid
+    
     (reduce (fn [rooms [x y]]
               (let [room-id (keyword (str "room-" x "-" y))
                     exits (ref {})
                     content (generate-room-content)]
                 
-                ;; Add exits
+                
                 (when (> y 0) (dosync (alter exits assoc :north (keyword (str "room-" x "-" (dec y))))))
-                (when (< y 9) (dosync (alter exits assoc :south (keyword (str "room-" x "-" (inc y))))))
+                (when (< y (dec dungeon-height)) (dosync (alter exits assoc :south (keyword (str "room-" x "-" (inc y))))))
                 (when (> x 0) (dosync (alter exits assoc :west (keyword (str "room-" (dec x) "-" y)))))
-                (when (< x 4) (dosync (alter exits assoc :east (keyword (str "room-" (inc x) "-" y)))))
+                (when (< x (dec dungeon-width)) (dosync (alter exits assoc :east (keyword (str "room-" (inc x) "-" y)))))
                 
                 (let [room {:name room-id
                             :desc (rand-nth room-descriptions)
@@ -114,8 +136,8 @@
                             :puzzle (:puzzle content)
                             :inhabitants (:inhabitants content)
                             :room-type (:room-type content)}]
-                  ;; Add mobs to the room
+                  
                   (add-mobs-to-room room)
                   (assoc rooms room-id room))))
             rooms
-            (for [x (range 5) y (range 10)] [x y]))))
+            (for [x (range dungeon-width) y (range dungeon-height)] [x y]))))

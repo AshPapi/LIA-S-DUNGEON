@@ -7,6 +7,8 @@
             [mire.puzzles :as puzzles]
             [mire.lobby :as lobby]))
 
+(declare show-timer)
+
 (defn- move-between-refs
   "Move one instance of obj between from and to. Must call in a transaction."
   [obj from to]
@@ -24,17 +26,29 @@
         puzzle (when puzzle-ref @puzzle-ref)
         traders (seq @(:traders room))
         others (disj @(:inhabitants room) player/*name*)]
-    (str (:desc room)
-         "\nExits: " exits "\n"
-         (when items (str "You see: " (clojure.string/join ", " (map name items)) "\n"))
-         (when mobs (str "Enemies here: " 
-                         (clojure.string/join ", " 
-                           (map #(let [m @%] (str (:name m) " [HP: " (:hp m) "/" (:max-hp m) "]")) mobs)) 
-                         "\n"))
-         (when puzzle (str "You notice a mysterious inscription: \"" (:q puzzle) "\"\nUse: puzzle\n"))
-         (when traders (str "Traders here: " (clojure.string/join ", " (map :name traders)) "\n"))
-         (when (seq others) (str "Also here: " (clojure.string/join ", " (map name others)) "\n"))
-         "\nCommands: 1)Look 2)Move 3)Grab 4)Inventory 5)Attack 6)Use 7)Equip 8)Trade 9)Stats *)Puzzle #)Timer +)LevelUp 0)Quit")))
+    (with-out-str
+      (println (:desc room))
+      (println (format "Exits: %s" exits))
+      (when items
+        (println (format "You see: %s" (clojure.string/join ", " (map name items)))))
+      (when mobs
+        (println "Enemies here:")
+        (doseq [[idx mob-ref] (map-indexed vector mobs)]
+          (let [m @mob-ref]
+            (println (format "  %d) %s [HP: %d/%d]" (inc idx) (:name m) (:hp m) (:max-hp m))))))
+      (when puzzle
+        (println (format "You notice a mysterious inscription: \"%s\"" (:q puzzle)))
+        (println "Use: puzzle"))
+      (when traders
+        (println (format "Traders here: %s" (clojure.string/join ", " (map :name traders)))))
+      (when (seq others)
+        (println (format "Also here: %s" (clojure.string/join ", " (map name others)))))
+      (println)
+      (println "Commands:")
+      (println " 1)Look   2)Move   3)Grab   4)Inventory")
+      (println " 5)Attack 6)Use    7)Equip  8)Trade")
+      (println " 9)Stats  *)Puzzle #)Timer  +)LevelUp 0)Quit")
+      (println (show-timer)))))
 
 (defn move
   "Move in a direction."
@@ -46,7 +60,7 @@
          mobs-here (seq @(:mobs current-room))]
      (if target
        (do
-         ;; If fleeing from mobs, lose 10% max HP
+         
          (when (seq mobs-here)
            (let [max-hp (:max-hp @player/*stats*)
                  flee-damage (max 1 (quot max-hp 10))]
@@ -56,39 +70,61 @@
                             (:inhabitants target))
          (ref-set player/*current-room* target)
          (if (seq mobs-here)
-           (str "You flee and lose " (max 1 (quot (:max-hp @player/*stats*) 10)) " HP!\n\n" (look))
+           (with-out-str
+             (println "You flee and lose" (max 1 (quot (:max-hp @player/*stats*) 10)) "HP!")
+             (println)
+             (println (look)))
            (look)))
-       "You can't go that way."))))
+       (with-out-str (println "You can't go that way."))))))
 
 (defn grab
   "Pick something up."
   [thing]
-  (dosync
-   (if (rooms/room-contains? @player/*current-room* thing)
-     (do (move-between-refs (keyword thing)
-                            (:items @player/*current-room*)
-                            player/*inventory*)
-         (str "You picked up " thing "."))
-     (str "There is no " thing " here."))))
+  (let [room @player/*current-room*
+        item-key (keyword thing)]
+    (dosync
+     (if (rooms/room-contains? room thing)
+       (do
+         (alter (:items room) disj item-key)
+         (alter player/*inventory* #(update % item-key (fnil inc 0)))
+         (with-out-str
+           (println (format "You picked up %s." thing))))
+       (with-out-str
+         (println (format "There is no %s here." thing)))))))
 
 (defn discard
   "Put something down that you're carrying."
   [thing]
-  (dosync
-   (if (player/carrying? thing)
-     (do (move-between-refs (keyword thing)
-                            player/*inventory*
-                            (:items @player/*current-room*))
-         (str "You dropped " thing "."))
-     (str "You don't have " thing "."))))
+  (let [room @player/*current-room*
+        item-key (keyword thing)]
+    (dosync
+     (if (player/carrying? thing)
+       (do
+         (alter player/*inventory*
+                (fn [inv]
+                  (let [cur (get inv item-key 0)]
+                    (cond
+                      (> cur 1) (assoc inv item-key (dec cur))
+                      (= cur 1) (dissoc inv item-key)
+                      :else inv))))
+         (alter (:items room) conj item-key)
+         (with-out-str
+           (println (format "You dropped %s." thing))))
+       (with-out-str
+         (println (format "You don't have %s." thing)))))))
 
 (defn inventory
   "See what you've got."
   []
-  (let [inv (seq @player/*inventory*)]
-    (if inv
-      (str "You are carrying:\n" (str/join "\n" (map name inv)))
-      "Your inventory is empty.")))
+  (let [inv-map @player/*inventory*]
+    (if (seq inv-map)
+      (with-out-str
+        (println "You are carrying:")
+        (doseq [[k c] (sort-by key inv-map)]
+          (println (format "  %s%s"
+                           (name k)
+                           (if (> c 1) (format " (%d)" c) ""))))))
+      "Your inventory is empty."))
 
 (defn detect
   "If you have the detector, you can see which room an item is in."
@@ -97,71 +133,85 @@
     (let [item-key (keyword item)]
       (if-let [room (first (filter #(rooms/room-contains? @(second %) item)
                                    @rooms/rooms))]
-        (str item " is in " (name (first room)))
-        (str item " is not here")))
-    "You don't have a detector!"))
+        (with-out-str
+          (println (format "%s is in %s" item (name (first room)))))
+        (with-out-str
+          (println (format "%s is not here" item)))))
+    (with-out-str
+      (println "You don't have a detector!"))))
 
 (defn use-item
   "Use an item in your inventory."
   [item]
   (if-not (player/carrying? item)
-    (str "You don't have " item ".")
+    (with-out-str
+      (println (format "You don't have %s." item)))
     (let [item-key (keyword item)
           potion (items/get-potion item-key)]
       (cond
-        ;; Weapon upgrade
+        
         (= item-key :weapon-upgrade)
         (do
-          (dosync (alter player/*inventory* disj item-key))
+          (player/remove-item! item-key)
           (player/upgrade-weapon! player/*stats*)
-          (str "You upgraded your weapon! Damage increased by 2.\nYour current damage: " (:damage @player/*stats*)))
+          (with-out-str
+            (println "You upgraded your weapon! Damage increased by 2.")
+            (println "Your current damage:" (:damage @player/*stats*))))
         
-        ;; Potion
+        
         potion
         (do
-          (dosync (alter player/*inventory* disj item-key))
+          (player/remove-item! item-key)
           (if-let [heal (:heal potion)]
-            (do
+            (with-out-str
               (player/heal! player/*stats* heal)
-              (str "You drank " (:name potion) " and restored " heal " HP!\n"
-                   "Your HP: " (:hp @player/*stats*) "/" (:max-hp @player/*stats*)))
+              (println "You drank" (:name potion) "and restored" heal "HP!")
+              (println "Your HP:" (:hp @player/*stats*) "/" (:max-hp @player/*stats*)))
             (if-let [res (:resist potion)]
-              (let [turns (:turns potion 3)]
-                (player/apply-resist! player/*stats* res turns)
-                (str "You drank " (:name potion) " and gained " res "% resistance for " turns " turns!"))
-              (str "You used " (:name potion) ", but nothing happened."))))
+              (with-out-str
+                (let [turns (:turns potion 3)]
+                  (player/apply-resist! player/*stats* res turns)
+                  (println "You drank" (:name potion) "and gained" res "% resistance for" turns "turns!")))
+              (with-out-str
+                (println "You used" (:name potion) ", but nothing happened.")))))
         
         :else
-        (str "You can't use " item ".")))))
+        (with-out-str
+          (println (format "You can't use %s." item)))))))
 
 (defn equip-item
   "Equip a weapon or armor from inventory."
   [item-name]
   (if-not (player/carrying? item-name)
-    (str "You don't have " item-name " in inventory.")
+    (with-out-str
+      (println (format "You don't have %s in inventory." item-name)))
     (let [weapon (items/get-weapon item-name)
           armor (items/get-armor item-name)]
       (cond
         weapon
         (do
-          (dosync (alter player/*inventory* disj (keyword item-name)))
+          (player/remove-item! item-name)
           (player/equip-weapon! player/*stats* weapon)
-          (str "You equipped weapon: " (:name weapon) "."))
+          (with-out-str
+            (println (format "You equipped weapon: %s." (:name weapon)))))
         
         armor
         (do
-          (dosync (alter player/*inventory* disj (keyword item-name)))
+          (player/remove-item! item-name)
           (player/equip-armor! player/*stats* armor)
-          (str "You equipped armor: " (:name armor) " (resistance: " (:resist armor) "%)."))
+          (with-out-str
+            (println (format "You equipped armor: %s (resistance: %d%%)." (:name armor) (:resist armor)))))
         
         :else
-        "This can't be equipped."))))
+        (with-out-str
+          (println "This can't be equipped."))))))
 
 (defn unequip
   "Remove your weapon."
   []
   (player/equip-weapon! player/*stats* nil)
-  "You are now unarmed.")
+  (with-out-str
+    (println "You are now unarmed.")))
 
 (defn display-stats
   "Show player stats."
@@ -169,35 +219,51 @@
   (let [s @player/*stats*
         xp-needed (player/xp-for-level (:level s))
         weapon (get-in s [:slots :weapon])
-        armor (get-in s [:slots :armor])]
-    (str "=== Stats ===\n"
-         "HP: " (:hp s) "/" (:max-hp s) "\n"
-         "Damage: " (:damage s) " (base: " (:base-damage s) ")\n"
-         "Weapon: " (if weapon (:name weapon) "Fists") "\n"
-         "Armor: " (if armor (str (:name armor) " (" (:resist armor) "%)") "None") "\n"
-         "XP: " (:xp s) "/" xp-needed "\n"
-         "Level: " (:level s) "\n"
-         "Gold: " (:gold s)
-         (when (:pending-levelup s)
-           "\n\n*** LEVEL UP! Use 'levelup' command ***"))))
+        armor (get-in s [:slots :armor])
+        buff-resist (:resist_pct s)
+        buff-turns (:resist_turns s)]
+    (with-out-str
+      (println "=== Stats ===")
+      (println "HP:" (:hp s) "/" (:max-hp s))
+      (println "Damage:" (:damage s) "(base:" (:base-damage s) ")")
+      (println "Weapon:" (if weapon (:name weapon) "Fists"))
+      (println "Armor:" (if armor (format "%s (%d%%)" (:name armor) (:resist armor)) "None"))
+      (when (pos? buff-resist)
+        (println "Resistance buff:" buff-resist "% for" (max 0 buff-turns) "more turns"))
+      (println "XP:" (:xp s) "/" xp-needed)
+      (println "Level:" (:level s))
+      (println "Gold:" (:gold s))
+      (when (:pending-levelup s)
+        (println)
+        (println "*** LEVEL UP! Use 'levelup' command ***")))))
 
 (defn levelup-choice
   "Apply level-up bonus based on choice."
   [choice]
   (let [s @player/*stats*]
     (if-not (:pending-levelup s)
-      "You have no available level-ups."
+      (with-out-str
+        (println "You have no available level-ups."))
       (case choice
         "1" (do (player/apply-level-up! player/*stats* :damage)
-                (str "You chose +2 damage!\nYour new base damage: " (:base-damage @player/*stats*)))
+                (with-out-str
+                  (println "You chose +2 damage!")
+                  (println "Your new base damage:" (:base-damage @player/*stats*))))
         "2" (do (player/apply-level-up! player/*stats* :hp)
-                (str "You chose +15 max HP!\nYour new HP: " (:hp @player/*stats*) "/" (:max-hp @player/*stats*)))
-        (str "Choose upgrade:\n1) +2 damage\n2) +15 max HP\nUse: levelup 1 or levelup 2")))))
+                (with-out-str
+                  (println "You chose +15 max HP!")
+                  (println "Your new HP:" (:hp @player/*stats*) "/" (:max-hp @player/*stats*))))
+        (with-out-str
+          (println "Choose upgrade:")
+          (println "1) +2 damage")
+          (println "2) +15 max HP")
+          (println "Use: levelup 1 or levelup 2"))))))
 
 (defn display-help
   "Get help."
   []
-  "Explore the dungeon and have fun!")
+  (with-out-str
+    (println "Explore the dungeon and have fun!")))
 
 (defn say
   "Broadcast a message to the current room."
@@ -206,52 +272,63 @@
     (doseq [inhabitant (disj @(:inhabitants @player/*current-room*) player/*name*)]
       (if-let [output (get @player/streams inhabitant)]
         (binding [*out* output]
-          (println (str player/*name* " says: " msg))
+          (println player/*name* "says:" msg)
           (flush))))
-    (str "You say: " msg)))
+    (with-out-str
+      (println "You say:" msg))))
 
 (defn attack-mob
   "Attack an enemy in the current room. All mobs attack back."
   [& args]
   (let [room @player/*current-room*
-        mob-seq (seq @(:mobs room))]
-    (if-not (seq mob-seq)
-      "There are no enemies here."
-      (let [mob (if (empty? args)
-                  (first mob-seq)
-                  (mobs/find-mob-in-room room (first args)))]
-        (if mob
-          (do
+        mob-list (vec @(:mobs room))]
+    (if (empty? mob-list)
+      (with-out-str (println "There are no enemies here."))
+      (let [target-arg (first args)
+            idx (when target-arg (try (Integer/parseInt target-arg) (catch Exception _ nil)))
+            target-mob (cond
+                         (nil? target-arg) (first mob-list)
+                         (and idx (<= 1 idx) (<= idx (count mob-list))) (mob-list (dec idx))
+                         (and idx (not (<= 1 idx (count mob-list)))) :invalid-index
+                         :else (mobs/find-mob-in-room room (str/lower-case target-arg)))]
+        (cond
+          (= target-mob :invalid-index)
+          (with-out-str (println "Invalid target number."))
+
+          (nil? target-mob)
+          (with-out-str (println "That mob is not here!"))
+
+          :else
+          (let [mob target-mob]
             (mobs/player-attack-mob! player/*stats* mob)
             (let [m @mob]
               (if (<= (:hp m) 0)
                 (let [gold-reward (or (:gold m) 10)
                       xp-reward (or (:xp m) 10)
-                      ;; Drop potion: 65% hp-small, 35% hp-medium
                       potion-drop (if (< (rand) 0.65) :hp-small :hp-medium)
                       potion-name (if (= potion-drop :hp-small) "Small HP Potion" "Medium HP Potion")]
                   (player/add-gold! player/*stats* gold-reward)
                   (player/add-xp! player/*stats* xp-reward)
-                  (dosync (alter player/*inventory* conj potion-drop))
+                  (player/add-item! potion-drop)
                   (mobs/remove-mob-from-room! mob room)
-                  ;; Remaining mobs still attack
                   (let [remaining-mobs (seq @(:mobs room))
-                        counter-attacks (if remaining-mobs
-                                          (str "\n" (mobs/all-mobs-attack! room player/*stats*))
-                                          "")]
+                        counter (when remaining-mobs (mobs/all-mobs-attack! room player/*stats*))]
+                    (with-out-str
+                      (println "You defeated" (:name m) "! Got" gold-reward "gold and" xp-reward "XP!")
+                      (println "Dropped:" potion-name "!")
+                      (when counter
+                        (println counter))
+                      (if (player/alive? player/*stats*)
+                        (println "Your HP:" (:hp @player/*stats*) "/" (:max-hp @player/*stats*))
+                        (println "*** YOU DIED ***")))))
+                (let [counter (mobs/all-mobs-attack! room player/*stats*)]
+                  (with-out-str
+                    (println "You hit" (:name m) "! [HP:" (:hp m) "/" (:max-hp m) "]")
+                    (println "All enemies attack!")
+                    (println counter)
                     (if (player/alive? player/*stats*)
-                      (str "You defeated " (:name m) "! Got " gold-reward " gold and " xp-reward " XP!\n"
-                           "Dropped: " potion-name "!" counter-attacks
-                           "\nYour HP: " (:hp @player/*stats*) "/" (:max-hp @player/*stats*))
-                      (str "You defeated " (:name m) "!" counter-attacks "\n\n*** YOU DIED ***"))))
-                ;; All mobs attack back
-                (let [attack-result (str "You hit " (:name m) "! [HP: " (:hp m) "/" (:max-hp m) "]\n"
-                                         "All enemies attack!\n" (mobs/all-mobs-attack! room player/*stats*))]
-                  (if (player/alive? player/*stats*)
-                    (str attack-result "\nYour HP: " (:hp @player/*stats*) "/" (:max-hp @player/*stats*))
-                    (str attack-result "\n\n*** YOU DIED ***"))))))
-          "That mob is not here!")))))
-
+                      (println "Your HP:" (:hp @player/*stats*) "/" (:max-hp @player/*stats*))
+                      (println "*** YOU DIED ***"))))))))))))
 (defn solve-puzzle
   "Show or attempt to solve a puzzle in the current room."
   [& args]
@@ -259,38 +336,91 @@
         puzzle-ref (:puzzle room)
         puzzle (when puzzle-ref @puzzle-ref)]
     (if-not puzzle
-      "There is no puzzle here."
+      (with-out-str
+        (println "There is no puzzle here."))
       (if (empty? args)
-        (str "Puzzle: \"" (:q puzzle) "\"\n"
-             "Choices:\n"
-             (str/join "\n" (map-indexed (fn [i c] (str i ") " c)) (:choices puzzle)))
-             "\nUse: solve <number>")
+        (with-out-str
+          (println (format "Puzzle: \"%s\"" (:q puzzle)))
+          (println "Choices:")
+          (doseq [[i c] (map-indexed vector (:choices puzzle))]
+            (println (format "%d) %s" i c)))
+          (println "Use: solve <number>"))
         (let [choice-idx (try (Integer/parseInt (first args)) (catch Exception _ nil))]
           (if (nil? choice-idx)
-            "Enter a number (0, 1, or 2) to answer."
+            (with-out-str
+              (println "Enter a number (0, 1, or 2) to answer."))
             (if (<= choice-idx (dec (count (:choices puzzle))))
-              (do
-                ;; Remove puzzle after any attempt
+              (let [answer-correct (= choice-idx (:answer puzzle))]
                 (dosync (ref-set puzzle-ref nil))
-                (if (= choice-idx (:answer puzzle))
-                  (let [gold-reward (+ 20 (rand-int 31))
+                (if answer-correct
+                  (let [gold-reward (+ 10 (rand-int 16))
                         xp-reward (:xp puzzle)]
                     (player/add-gold! player/*stats* gold-reward)
                     (player/add-xp! player/*stats* xp-reward)
-                    (str "Correct! You solved the puzzle! Got " xp-reward " XP and " gold-reward " gold!"))
-                  (str "Wrong. The correct answer was: " ((:choices puzzle) (:answer puzzle)))))
-              "Invalid choice number.")))))))
+                    (with-out-str
+                      (println "Correct! You solved the puzzle!")
+                      (println "Got" xp-reward "XP and" gold-reward "gold!")))
+                  (with-out-str
+                    (println "Wrong. The correct answer was:" ((:choices puzzle) (:answer puzzle))))))
+              (with-out-str
+                (println "Invalid choice number.")))))))))
 
-;; Trader shop items with prices
-(def shop-items
-  [{:id :hp-small :name "Small HP Potion" :price 20}
-   {:id :hp-medium :name "Medium HP Potion" :price 50}
-   {:id :resist :name "Resistance Potion" :price 40}
-   {:id :sword :name "Sword" :price 80}
-   {:id :axe :name "Axe" :price 100}
-   {:id :leather :name "Leather Armor" :price 60}
-   {:id :chain :name "Chainmail" :price 150}
-   {:id :weapon-upgrade :name "Weapon Upgrade (+2 damage)" :price 75}])
+
+(def item-prices
+  {:hp-small 20
+   :hp-medium 40
+   :resist 55
+   :dagger 45
+   :club 35
+   :sword 85
+   :axe 105
+   :spear 125
+   :mace 145
+   :warhammer 175
+   :crossbow 160
+   :leather 70
+   :scale 110
+   :chain 145
+   :plate 200
+   :weapon-upgrade 90})
+
+(def trader-stock
+  {:general [:hp-small :hp-medium :resist :dagger :club :sword :leather :weapon-upgrade]
+   :scavenger [:hp-small :hp-medium :resist :dagger :club :crossbow :leather]
+   :blacksmith [:sword :axe :spear :mace :warhammer :crossbow :scale :chain :plate :weapon-upgrade]
+   :alchemist [:hp-small :hp-medium :resist :weapon-upgrade]
+   :fortune [:resist :hp-medium :weapon-upgrade :dagger]})
+
+(defn- item-name [id]
+  (or (:name (items/get-weapon id))
+      (:name (items/get-armor id))
+      (:name (items/get-potion id))
+      (when (= id :weapon-upgrade) (:name items/upgrade-kit))
+      (name id)))
+
+(defn- item-info [id]
+  (when-let [price (get item-prices id)]
+    {:id id
+     :name (item-name id)
+     :price price}))
+
+(defn- trader-items [trader]
+  (let [ids (get trader-stock (or (:type trader) :general)
+                   (get trader-stock :general))]
+    (->> ids
+         (map item-info)
+         (remove nil?))))
+
+(defn- sell-price [price]
+  (max 1 (int (Math/ceil (* price 0.5)))))
+
+(defn- sellable-items [inv-map]
+  (->> inv-map
+       (map (fn [[id qty]]
+              (when-let [info (item-info id)]
+                (assoc info :qty qty :sell-price (sell-price (:price info))))))
+       (remove nil?)
+       (sort-by :name)))
 
 (defn trade
   "Trade with a merchant in the current room."
@@ -298,26 +428,71 @@
   (let [room @player/*current-room*
         traders (seq @(:traders room))]
     (if-not traders
-      "There is no trader here."
-      (if (empty? args)
-        (str "Welcome to the shop! Your gold: " (player/get-gold player/*stats*) "\n"
-             "Items:\n"
-             (str/join "\n" (map-indexed (fn [i item] 
-                                           (str i ") " (:name item) " - " (:price item) " gold")) 
-                                         shop-items))
-             "\nUse: trade <number>")
-        (let [choice-idx (try (Integer/parseInt (first args)) (catch Exception _ nil))]
-          (if (nil? choice-idx)
-            "Enter item number."
-            (if (and (>= choice-idx 0) (< choice-idx (count shop-items)))
-              (let [item (nth shop-items choice-idx)
-                    price (:price item)]
-                (if (player/spend-gold! player/*stats* price)
-                  (do
-                    (dosync (alter player/*inventory* conj (:id item)))
-                    (str "You bought " (:name item) " for " price " gold!"))
-                  (str "Not enough gold! Need " price ", you have " (player/get-gold player/*stats*) ".")))
-              "Invalid item number.")))))))
+      (with-out-str
+        (println "There is no trader here."))
+      (let [trader (first traders)
+            stock (vec (trader-items trader))
+            inv-map @player/*inventory*
+            sellable (vec (sellable-items inv-map))
+            trader-role (name (or (:type trader) :general))
+            header (format "%s (%s) welcomes you. Gold: %d"
+                           (or (:name trader) "Trader")
+                           trader-role
+                           (player/get-gold player/*stats*))]
+        (if (empty? args)
+          (with-out-str
+            (println header)
+            (when (seq stock)
+              (println "Buy:")
+              (doseq [[i itm] (map-indexed vector stock)]
+                (println (format "%d) %s - %d gold" (inc i) (:name itm) (:price itm)))))
+            (when (seq sellable)
+              (println "Sell:")
+              (doseq [[i itm] (map-indexed vector sellable)]
+                (println (format "%d) %s (%d) - %d gold"
+                                 (inc i) (:name itm) (:qty itm) (:sell-price itm)))))
+            (println "Use: trade <number> to buy or trade sell <number> to sell."))
+          (let [[action idx-str] (if (and (seq args) (#{"buy" "sell"} (first args)))
+                                   [(first args) (second args)]
+                                   ["buy" (first args)])
+                idx (try (Integer/parseInt (or idx-str "")) (catch Exception _ nil))]
+            (cond
+              (nil? idx)
+              (with-out-str
+                (println "Enter item number."))
+
+              (= action "sell")
+              (cond
+                (empty? sellable) (with-out-str
+                                    (println "You have nothing the trader wants."))
+                (not (<= 1 idx (count sellable))) (with-out-str
+                                                    (println "Invalid item number."))
+                :else (let [{:keys [id name sell-price]} (sellable (dec idx))]
+                        (if (player/remove-item! id)
+                          (do
+                            (player/add-gold! player/*stats* sell-price)
+                            (with-out-str
+                              (println (format "Sold %s for %d gold." name sell-price))))
+                          (with-out-str
+                            (println "You don't have that item anymore.")))))
+
+              :else
+              (cond
+                (empty? stock) (with-out-str
+                                 (println (format "%s has nothing to sell right now."
+                                                  (or (:name trader) "Trader"))))
+                (not (<= 1 idx (count stock))) (with-out-str
+                                                 (println "Invalid item number."))
+                :else (let [{:keys [id name price]} (stock (dec idx))]
+                        (if (player/spend-gold! player/*stats* price)
+                          (do
+                            (player/add-item! id)
+                            (with-out-str
+                              (println (format "You bought %s for %d gold!" name price))))
+                          (with-out-str
+                            (println (format "Not enough gold! Need %d, you have %d."
+                                             price
+                                             (player/get-gold player/*stats*))))))))))))))
 
 (defn show-timer
   "Show remaining game time."
@@ -327,9 +502,12 @@
           minutes (quot remaining 60000)
           seconds (quot (mod remaining 60000) 1000)]
       (if (pos? remaining)
-        (str "Time remaining: " minutes ":" (format "%02d" seconds))
-        "Time's up!"))
-    "Timer not started."))
+        (with-out-str
+          (print (format "Time remaining: %d:%02d" minutes seconds)))
+        (with-out-str
+          (println "Time's up!"))))
+    (with-out-str
+      (println "Timer not started."))))
 
 (def commands
   {"move" move

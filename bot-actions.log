@@ -1,0 +1,135 @@
+2025-12-15T06:59:33.927135Z Bot started in room: :room-1-2
+2025-12-15T06:59:33.930097Z Query: sync_state('room-1-2',['north'-'room-1-1','south'-'room-1-3','west'-'room-0-2','east'-'room-2-2'],[],[mob('skeleton',20,20,5)],[],100,100,4,0), choose_action(A), action_to_string(A,S), write(S), nl, halt.
+2025-12-15T06:59:33.994699Z Prolog output: "attack skeleton\n" -> action: attack skeleton
+2025-12-15T06:59:33.995143Z Executing: attack skeleton | HP: 100 / 100 | Room: :room-1-2 | Mobs: 1 | Items: 0
+2025-12-15T06:59:56.846063Z Query: sync_state('room-1-2',['north'-'room-1-1','south'-'room-1-3','west'-'room-0-2','east'-'room-2-2'],[],[mob('skeleton',16,20,5)],[],95,100,4,0), choose_action(A), action_to_string(A,S), write(S), nl, halt.
+2025-12-15T06:59:56.905026Z Prolog output: "attack skeleton\n" -> action: attack skeleton
+2025-12-15T06:59:56.905441Z Executing: attack skeleton | HP: 95 / 100 | Room: :room-1-2 | Mobs: 1 | Items: 0
+2025-12-15T07:00:07.263937Z Query: sync_state('room-1-2',['north'-'room-1-1','south'-'room-1-3','west'-'room-0-2','east'-'room-2-2'],[],[mob('skeleton',12,20,5)],[],90,100,4,0), choose_action(A), action_to_string(A,S), write(S), nl, halt.
+2025-12-15T07:00:07.314274Z Prolog output: "attack skeleton\n" -> action: attack skeleton
+2025-12-15T07:00:07.314686Z Executing: attack skeleton | HP: 90 / 100 | Room: :room-1-2 | Mobs: 1 | Items: 0
+2025-12-15T07:00:12.746035Z Query: sync_state('room-1-2',['north'-'room-1-1','south'-'room-1-3','west'-'room-0-2','east'-'room-2-2'],[],[mob('skeleton',8,20,5)],[],85,100,4,0), choose_action(A), action_to_string(A,S), write(S), nl, halt.
+2025-12-15T07:00:12.802619Z Prolog output: "attack skeleton\n" -> action: attack skeleton
+2025-12-15T07:00:12.803112Z Executing: attack skeleton | HP: 85 / 100 | Room: :room-1-2 | Mobs: 1 | Items: 0
+2025-12-15T07:00:13.993307Z Query: sync_state('room-1-2',['north'-'room-1-1','south'-'room-1-3','west'-'room-0-2','east'-'room-2-2'],[],[mob('skeleton',4,20,5)],[],80,100,4,0), choose_action(A), action_to_string(A,S), write(S), nl, halt.
+2025-12-15T07:00:14.052356Z Prolog output: "attack skeleton\n" -> action: attack skeleton
+2025-12-15T07:00:14.052929Z Executing: attack skeleton | HP: 80 / 100 | Room: :room-1-2 | Mobs: 1 | Items: 0
+2025-12-15T07:00:14.888834Z Query: sync_state('room-1-2',['north'-'room-1-1','south'-'room-1-3','west'-'room-0-2','east'-'room-2-2'],[],[],['hp-medium'],80,100,4,0), choose_action(A), action_to_string(A,S), write(S), nl, halt.
+2025-12-15T07:00:14.950410Z Prolog output: "move north\n" -> action: move north
+2025-12-15T07:00:14.950958Z Executing: move north | HP: 80 / 100 | Room: :room-1-2 | Mobs: 0 | Items: 0
+2025-12-15T07:00:14.951918Z Moved to: :room-1-1
+2025-12-15T07:00:15.816818Z Query: sync_state('room-1-1',['north'-'room-1-0','south'-'room-1-2','west'-'room-0-1','east'-'room-2-1'],['hp-medium'],[mob('zombie',25,25,4)],['hp-medium'],80,100,4,0), choose_action(A), action_to_string(A,S), write(S), nl, halt.
+2025-12-15T07:00:15.871786Z Prolog output: "attack zombie\n" -> action: attack zombie
+2025-12-15T07:00:15.872205Z Executing: attack zombie | HP: 80 / 100 | Room: :room-1-1 | Mobs: 1 | Items: 1
+2025-12-15T07:00:16.588497Z Query: sync_state('room-1-1',['north'-'room-1-0','south'-'room-1-2','west'-'room-0-1','east'-'room-2-1'],['hp-medium'],[mob('zombie',21,25,4)],['hp-medium'],76,100,4,0), choose_action(A), action_to_string(A,S), write(S), nl, halt.
+2025-12-15T07:00:16.642117Z Prolog output: "attack zombie\n" -> action: attack zombie
+2025-12-15T07:00:16.642611Z Executing: attack zombie | HP: 76 / 100 | Room: :room-1-1 | Mobs: 1 | Items: 1
+2025-12-15T07:00:18.190780Z Query: sync_state('room-1-1',['north'-'room-1-0','south'-'room-1-2','west'-'room-0-1','east'-'room-2-1'],['hp-medium'],[mob('zombie',17,25,4)],['hp-medium'],72,100,4,0), choose_action(A), action_to_string(A,S), write(S), nl, halt.
+2025-12-15T07:00:18.241247Z Prolog output: "attack zombie\n" -> action: attack zombie
+2025-12-15T07:00:18.241611Z Executing: attack zombie | HP: 72 / 100 | Room: :room-1-1 | Mobs: 1 | Items: 1
+2025-12-15T07:00:20.969017Z Query: sync_state('room-1-1',['north'-'room-1-0','south'-'room-1-2','west'-'room-0-1','east'-'room-2-1'],['hp-medium'],[mob('zombie',13,25,4)],['hp-medium'],68,100,4,0), choose_action(A), action_to_string(A,S), write(S), nl, halt.
+2025-12-15T07:00:21.020980Z Prolog output: "move north\n" -> action: move north
+2025-12-15T07:00:21.021415Z Executing: move north | HP: 68 / 100 | Room: :room-1-1 | Mobs: 1 | Items: 1
+2025-12-15T07:00:21.022288Z Moved to: :room-1-0
+2025-12-15T07:00:22.322052Z Query: sync_state('room-1-0',['south'-'room-1-1','west'-'room-0-0','east'-'room-2-0'],['hp-small'],[],['hp-medium'],58,100,4,0), choose_action(A), action_to_string(A,S), write(S), nl, halt.
+2025-12-15T07:00:22.386508Z Prolog output: "grab hp-small\n" -> action: grab hp-small
+2025-12-15T07:00:22.386912Z Executing: grab hp-small | HP: 58 / 100 | Room: :room-1-0 | Mobs: 0 | Items: 1
+2025-12-15T07:00:24.399711Z Query: sync_state('room-1-0',['south'-'room-1-1','west'-'room-0-0','east'-'room-2-0'],[],[],['hp-medium','hp-small'],58,100,4,0), choose_action(A), action_to_string(A,S), write(S), nl, halt.
+2025-12-15T07:00:24.452161Z Prolog output: "move south\n" -> action: move south
+2025-12-15T07:00:24.452638Z Executing: move south | HP: 58 / 100 | Room: :room-1-0 | Mobs: 0 | Items: 0
+2025-12-15T07:00:24.453377Z Moved to: :room-1-1
+2025-12-15T07:00:28.129815Z Query: sync_state('room-1-1',['north'-'room-1-0','south'-'room-1-2','west'-'room-0-1','east'-'room-2-1'],['hp-medium'],[mob('zombie',13,25,4)],['hp-medium','hp-small'],58,100,4,0), choose_action(A), action_to_string(A,S), write(S), nl, halt.
+2025-12-15T07:00:28.180952Z Prolog output: "move north\n" -> action: move north
+2025-12-15T07:00:28.181395Z Executing: move north | HP: 58 / 100 | Room: :room-1-1 | Mobs: 1 | Items: 1
+2025-12-15T07:00:28.182432Z Moved to: :room-1-0
+2025-12-15T07:00:30.119545Z Query: sync_state('room-1-0',['south'-'room-1-1','west'-'room-0-0','east'-'room-2-0'],[],[],['hp-medium','hp-small'],48,100,4,0), choose_action(A), action_to_string(A,S), write(S), nl, halt.
+2025-12-15T07:00:30.174124Z Prolog output: "use hp-medium\n" -> action: use hp-medium
+2025-12-15T07:00:30.174561Z Executing: use hp-medium | HP: 48 / 100 | Room: :room-1-0 | Mobs: 0 | Items: 0
+2025-12-15T07:00:31.291852Z Query: sync_state('room-1-0',['south'-'room-1-1','west'-'room-0-0','east'-'room-2-0'],[],[],['hp-small'],98,100,4,0), choose_action(A), action_to_string(A,S), write(S), nl, halt.
+2025-12-15T07:00:31.347031Z Prolog output: "move south\n" -> action: move south
+2025-12-15T07:00:31.347457Z Executing: move south | HP: 98 / 100 | Room: :room-1-0 | Mobs: 0 | Items: 0
+2025-12-15T07:00:31.348173Z Moved to: :room-1-1
+2025-12-15T07:00:32.035411Z Query: sync_state('room-1-1',['north'-'room-1-0','south'-'room-1-2','west'-'room-0-1','east'-'room-2-1'],['hp-medium'],[mob('zombie',13,25,4)],['hp-small'],98,100,4,0), choose_action(A), action_to_string(A,S), write(S), nl, halt.
+2025-12-15T07:00:32.103716Z Prolog output: "attack zombie\n" -> action: attack zombie
+2025-12-15T07:00:32.104215Z Executing: attack zombie | HP: 98 / 100 | Room: :room-1-1 | Mobs: 1 | Items: 1
+2025-12-15T07:00:32.720842Z Query: sync_state('room-1-1',['north'-'room-1-0','south'-'room-1-2','west'-'room-0-1','east'-'room-2-1'],['hp-medium'],[mob('zombie',9,25,4)],['hp-small'],94,100,4,0), choose_action(A), action_to_string(A,S), write(S), nl, halt.
+2025-12-15T07:00:32.778873Z Prolog output: "attack zombie\n" -> action: attack zombie
+2025-12-15T07:00:32.779465Z Executing: attack zombie | HP: 94 / 100 | Room: :room-1-1 | Mobs: 1 | Items: 1
+2025-12-15T07:00:33.309208Z Query: sync_state('room-1-1',['north'-'room-1-0','south'-'room-1-2','west'-'room-0-1','east'-'room-2-1'],['hp-medium'],[mob('zombie',5,25,4)],['hp-small'],90,100,4,0), choose_action(A), action_to_string(A,S), write(S), nl, halt.
+2025-12-15T07:00:33.368243Z Prolog output: "attack zombie\n" -> action: attack zombie
+2025-12-15T07:00:33.368688Z Executing: attack zombie | HP: 90 / 100 | Room: :room-1-1 | Mobs: 1 | Items: 1
+2025-12-15T07:00:33.993199Z Query: sync_state('room-1-1',['north'-'room-1-0','south'-'room-1-2','west'-'room-0-1','east'-'room-2-1'],['hp-medium'],[mob('zombie',1,25,4)],['hp-small'],86,100,4,0), choose_action(A), action_to_string(A,S), write(S), nl, halt.
+2025-12-15T07:00:34.053661Z Prolog output: "attack zombie\n" -> action: attack zombie
+2025-12-15T07:00:34.054176Z Executing: attack zombie | HP: 86 / 100 | Room: :room-1-1 | Mobs: 1 | Items: 1
+2025-12-15T07:00:34.654435Z Query: sync_state('room-1-1',['north'-'room-1-0','south'-'room-1-2','west'-'room-0-1','east'-'room-2-1'],['hp-medium'],[],['hp-small'],86,100,4,0), choose_action(A), action_to_string(A,S), write(S), nl, halt.
+2025-12-15T07:00:34.742108Z Prolog output: "grab hp-medium\n" -> action: grab hp-medium
+2025-12-15T07:00:34.742907Z Executing: grab hp-medium | HP: 86 / 100 | Room: :room-1-1 | Mobs: 0 | Items: 1
+2025-12-15T07:00:35.044960Z Query: sync_state('room-1-1',['north'-'room-1-0','south'-'room-1-2','west'-'room-0-1','east'-'room-2-1'],[],[],['hp-small','hp-medium'],86,100,4,0), choose_action(A), action_to_string(A,S), write(S), nl, halt.
+2025-12-15T07:00:35.097621Z Prolog output: "move north\n" -> action: move north
+2025-12-15T07:00:35.098024Z Executing: move north | HP: 86 / 100 | Room: :room-1-1 | Mobs: 0 | Items: 0
+2025-12-15T07:00:35.098845Z Moved to: :room-1-0
+2025-12-15T07:00:35.245042Z Query: sync_state('room-1-0',['south'-'room-1-1','west'-'room-0-0','east'-'room-2-0'],[],[],['hp-small','hp-medium'],86,100,4,0), choose_action(A), action_to_string(A,S), write(S), nl, halt.
+2025-12-15T07:00:35.304930Z Prolog output: "move south\n" -> action: move south
+2025-12-15T07:00:35.305349Z Executing: move south | HP: 86 / 100 | Room: :room-1-0 | Mobs: 0 | Items: 0
+2025-12-15T07:00:35.306081Z Moved to: :room-1-1
+2025-12-15T07:00:36.119668Z Query: sync_state('room-1-1',['north'-'room-1-0','south'-'room-1-2','west'-'room-0-1','east'-'room-2-1'],[],[],['hp-small','hp-medium'],86,100,4,0), choose_action(A), action_to_string(A,S), write(S), nl, halt.
+2025-12-15T07:00:36.185948Z Prolog output: "move north\n" -> action: move north
+2025-12-15T07:00:36.186408Z Executing: move north | HP: 86 / 100 | Room: :room-1-1 | Mobs: 0 | Items: 0
+2025-12-15T07:00:36.187146Z Moved to: :room-1-0
+2025-12-15T07:00:38.023497Z Query: sync_state('room-1-0',['south'-'room-1-1','west'-'room-0-0','east'-'room-2-0'],[],[],['hp-small','hp-medium'],86,100,4,0), choose_action(A), action_to_string(A,S), write(S), nl, halt.
+2025-12-15T07:00:38.083119Z Prolog output: "move south\n" -> action: move south
+2025-12-15T07:00:38.083547Z Executing: move south | HP: 86 / 100 | Room: :room-1-0 | Mobs: 0 | Items: 0
+2025-12-15T07:00:38.084537Z Moved to: :room-1-1
+2025-12-15T07:00:38.678878Z Query: sync_state('room-1-1',['north'-'room-1-0','south'-'room-1-2','west'-'room-0-1','east'-'room-2-1'],[],[],['hp-small','hp-medium'],86,100,4,0), choose_action(A), action_to_string(A,S), write(S), nl, halt.
+2025-12-15T07:00:38.736805Z Prolog output: "move north\n" -> action: move north
+2025-12-15T07:00:38.737335Z Executing: move north | HP: 86 / 100 | Room: :room-1-1 | Mobs: 0 | Items: 0
+2025-12-15T07:00:38.738232Z Moved to: :room-1-0
+2025-12-15T07:00:40.758331Z Query: sync_state('room-1-0',['south'-'room-1-1','west'-'room-0-0','east'-'room-2-0'],[],[],['hp-small','hp-medium'],86,100,4,0), choose_action(A), action_to_string(A,S), write(S), nl, halt.
+2025-12-15T07:00:40.820549Z Prolog output: "move south\n" -> action: move south
+2025-12-15T07:00:40.821007Z Executing: move south | HP: 86 / 100 | Room: :room-1-0 | Mobs: 0 | Items: 0
+2025-12-15T07:00:40.821722Z Moved to: :room-1-1
+2025-12-15T07:00:49.554026Z Query: sync_state('room-1-1',['north'-'room-1-0','south'-'room-1-2','west'-'room-0-1','east'-'room-2-1'],[],[],['hp-small','hp-medium'],86,100,4,0), choose_action(A), action_to_string(A,S), write(S), nl, halt.
+2025-12-15T07:00:49.609833Z Prolog output: "move north\n" -> action: move north
+2025-12-15T07:00:49.610282Z Executing: move north | HP: 86 / 100 | Room: :room-1-1 | Mobs: 0 | Items: 0
+2025-12-15T07:00:49.611090Z Moved to: :room-1-0
+2025-12-15T07:00:53.796718Z Query: sync_state('room-1-0',['south'-'room-1-1','west'-'room-0-0','east'-'room-2-0'],[],[],['hp-small','hp-medium'],86,100,4,0), choose_action(A), action_to_string(A,S), write(S), nl, halt.
+2025-12-15T07:00:53.851800Z Prolog output: "move south\n" -> action: move south
+2025-12-15T07:00:53.852290Z Executing: move south | HP: 86 / 100 | Room: :room-1-0 | Mobs: 0 | Items: 0
+2025-12-15T07:00:53.853159Z Moved to: :room-1-1
+2025-12-15T07:00:59.400153Z Query: sync_state('room-1-1',['north'-'room-1-0','south'-'room-1-2','west'-'room-0-1','east'-'room-2-1'],[],[],['hp-small','hp-medium'],86,100,4,0), choose_action(A), action_to_string(A,S), write(S), nl, halt.
+2025-12-15T07:00:59.461372Z Prolog output: "move north\n" -> action: move north
+2025-12-15T07:00:59.461799Z Executing: move north | HP: 86 / 100 | Room: :room-1-1 | Mobs: 0 | Items: 0
+2025-12-15T07:00:59.462596Z Moved to: :room-1-0
+2025-12-15T07:01:11.920074Z Query: sync_state('room-1-0',['south'-'room-1-1','west'-'room-0-0','east'-'room-2-0'],[],[],['hp-small','hp-medium'],86,100,4,0), choose_action(A), action_to_string(A,S), write(S), nl, halt.
+2025-12-15T07:01:11.974256Z Prolog output: "move south\n" -> action: move south
+2025-12-15T07:01:11.974708Z Executing: move south | HP: 86 / 100 | Room: :room-1-0 | Mobs: 0 | Items: 0
+2025-12-15T07:01:11.975352Z Moved to: :room-1-1
+2025-12-15T07:01:14.111999Z Query: sync_state('room-1-1',['north'-'room-1-0','south'-'room-1-2','west'-'room-0-1','east'-'room-2-1'],[],[],['hp-small','hp-medium'],86,100,4,0), choose_action(A), action_to_string(A,S), write(S), nl, halt.
+2025-12-15T07:01:14.172448Z Prolog output: "move north\n" -> action: move north
+2025-12-15T07:01:14.172894Z Executing: move north | HP: 86 / 100 | Room: :room-1-1 | Mobs: 0 | Items: 0
+2025-12-15T07:01:14.173624Z Moved to: :room-1-0
+2025-12-15T07:01:17.107653Z Query: sync_state('room-1-0',['south'-'room-1-1','west'-'room-0-0','east'-'room-2-0'],[],[],['hp-small','hp-medium'],86,100,4,0), choose_action(A), action_to_string(A,S), write(S), nl, halt.
+2025-12-15T07:01:17.166088Z Prolog output: "move south\n" -> action: move south
+2025-12-15T07:01:17.166527Z Executing: move south | HP: 86 / 100 | Room: :room-1-0 | Mobs: 0 | Items: 0
+2025-12-15T07:01:17.167204Z Moved to: :room-1-1
+2025-12-15T07:01:18.549481Z Query: sync_state('room-1-1',['north'-'room-1-0','south'-'room-1-2','west'-'room-0-1','east'-'room-2-1'],[],[],['hp-small','hp-medium'],86,100,4,0), choose_action(A), action_to_string(A,S), write(S), nl, halt.
+2025-12-15T07:01:18.617080Z Prolog output: "move north\n" -> action: move north
+2025-12-15T07:01:18.617525Z Executing: move north | HP: 86 / 100 | Room: :room-1-1 | Mobs: 0 | Items: 0
+2025-12-15T07:01:18.618259Z Moved to: :room-1-0
+2025-12-15T07:01:20.100046Z Query: sync_state('room-1-0',['south'-'room-1-1','west'-'room-0-0','east'-'room-2-0'],[],[],['hp-small','hp-medium'],86,100,4,0), choose_action(A), action_to_string(A,S), write(S), nl, halt.
+2025-12-15T07:01:20.165831Z Prolog output: "move south\n" -> action: move south
+2025-12-15T07:01:20.166324Z Executing: move south | HP: 86 / 100 | Room: :room-1-0 | Mobs: 0 | Items: 0
+2025-12-15T07:01:20.167064Z Moved to: :room-1-1
+2025-12-15T07:01:22.187843Z Query: sync_state('room-1-1',['north'-'room-1-0','south'-'room-1-2','west'-'room-0-1','east'-'room-2-1'],[],[],['hp-small','hp-medium'],86,100,4,0), choose_action(A), action_to_string(A,S), write(S), nl, halt.
+2025-12-15T07:01:22.247508Z Prolog output: "move north\n" -> action: move north
+2025-12-15T07:01:22.247941Z Executing: move north | HP: 86 / 100 | Room: :room-1-1 | Mobs: 0 | Items: 0
+2025-12-15T07:01:22.248648Z Moved to: :room-1-0
+2025-12-15T07:01:23.345582Z Query: sync_state('room-1-0',['south'-'room-1-1','west'-'room-0-0','east'-'room-2-0'],[],[],['hp-small','hp-medium'],86,100,4,0), choose_action(A), action_to_string(A,S), write(S), nl, halt.
+2025-12-15T07:01:23.431602Z Prolog output: "move south\n" -> action: move south
+2025-12-15T07:01:23.432394Z Executing: move south | HP: 86 / 100 | Room: :room-1-0 | Mobs: 0 | Items: 0
+2025-12-15T07:01:23.433618Z Moved to: :room-1-1
+2025-12-15T07:01:24.307380Z Query: sync_state('room-1-1',['north'-'room-1-0','south'-'room-1-2','west'-'room-0-1','east'-'room-2-1'],[],[],['hp-small','hp-medium'],86,100,4,0), choose_action(A), action_to_string(A,S), write(S), nl, halt.
+2025-12-15T07:01:24.365347Z Prolog output: "move north\n" -> action: move north
+2025-12-15T07:01:24.365900Z Executing: move north | HP: 86 / 100 | Room: :room-1-1 | Mobs: 0 | Items: 0
+2025-12-15T07:01:24.366796Z Moved to: :room-1-0
+2025-12-15T07:09:54.095361Z Bot stopped
